@@ -946,7 +946,7 @@ options = ClaudeAgentOptions(
           { id: 'a', text: '"Customer is upset about billing, please help."' },
           { id: 'b', text: 'The full chat transcript attached with no summary' },
           { id: 'c', text: 'The model\'s confidence score and a sentiment rating' },
-          { id: 'd', text: 'Customer ID, verification status, each concern with its status, actions taken with references, escalation reason, and recommended next step' },
+          { id: 'd', text: 'Customer ID, verification status, root cause, each concern with its status, actions taken with amounts and references, and recommended next step' },
         ],
         correct: 'd',
         why: 'Structured fields tell the human who the customer is, what is already done, and what to do next. Sentiment, confidence, or a raw transcript leave that work to the human.',

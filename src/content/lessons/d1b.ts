@@ -1,8 +1,8 @@
 import type { Lesson } from '../types';
 
 // Domain 1, task statements 1.5–1.7. Original, app-authored lessons.
-// Learning points are app-authored decompositions; the exam guide's Knowledge/Skills bullets
-// were not supplied, so nothing here claims to match them.
+// Learning points are aligned with the Knowledge/Skills bullets of the official exam guide v1.1
+// (read 2026-11-21), in this app's own words. See src/content/coverage/d1.ts.
 
 export const lessons: Lesson[] = [
   // ---------------------------------------------------------------------------
@@ -42,18 +42,18 @@ export const lessons: Lesson[] = [
       },
     ],
     learningPoints: [
-      'Explain where PreToolUse and PostToolUse hooks run in the agent loop and what each can change.',
-      'Explain why a rule that must hold every time (a refund cap, a verification prerequisite) belongs in a hook rather than only in the system prompt.',
-      'Write a PostToolUse hook that converts heterogeneous tool outputs (Unix timestamps, ISO dates, numeric status codes) into one consistent format.',
-      'Write a PreToolUse hook that blocks a policy-violating call and redirects the agent toward the allowed path, such as escalation.',
-      'Trim verbose tool results to the fields the agent needs so they do not crowd the context window.',
-      'Recognize when a prompt instruction or a fix inside the tool itself is a better choice than a hook.',
+      'Explain how a PostToolUse hook intercepts a tool result and transforms it before the model processes it.',
+      'Explain how a hook on outgoing tool calls (PreToolUse) enforces compliance rules, such as blocking refunds above a threshold.',
+      'Contrast hooks, which give deterministic guarantees, with prompt instructions, which give probabilistic compliance.',
+      'Write a PostToolUse hook that normalizes heterogeneous formats from different MCP tools (Unix timestamps, ISO 8601, numeric status codes) into one consistent shape.',
+      'Write a call-interception hook that blocks a policy-violating action (for example a refund over the limit) and redirects the agent to an alternative workflow such as human escalation.',
+      'Choose a hook over prompt-based enforcement whenever a business rule requires guaranteed compliance, and recognize when the prompt or a fix inside the tool is the better place.',
     ],
     concept: `Think of a hook as a checkpoint you own inside the agent loop. The model decides *which* tool to call and *with what arguments*, but before that call runs, and again after it returns, the SDK hands control to your code. Your code does not ask the model for permission or rely on it remembering an instruction. It simply runs, every time.
 
 That gives you two practical jobs.
 
-**Gatekeeping before a tool runs.** A support agent may be told "never refund more than $150". Most of the time it will comply. But "most of the time" is not a policy. A PreToolUse hook inspects the requested \`issue_refund\` call, sees \`amount: 240\`, and denies it. The denial reason goes back to the model as feedback, so you can redirect it: "Refunds over $150 need a human; call \`escalate_to_human\` with a summary." The agent then takes the allowed path instead of stalling.
+**Gatekeeping before a tool runs.** A support agent may be told "never refund more than $150" (the threshold is a business choice; $500 is just as common). Most of the time it will comply. But "most of the time" is not a policy. A PreToolUse hook inspects the requested \`issue_refund\` call, sees \`amount: 240\`, and denies it. The denial reason goes back to the model as feedback, so you can redirect it: "Refunds over $150 need a human; call \`escalate_to_human\` with a summary." The agent then takes the allowed path instead of stalling.
 
 **Cleanup after a tool returns.** Real backends disagree with each other. One returns \`"created": 1763478000\` (Unix seconds), another returns \`"issued_on": "2025-11-03"\`, a third returns \`"status": 3\` where 3 means "refunded" only if you know the enum. If the model has to reconcile these, it can misread them, for example comparing a raw integer with a date. A PostToolUse hook converts everything to one shape (ISO 8601 UTC, readable status strings) and drops fields like debug blobs that only consume context.
 
@@ -307,8 +307,8 @@ Observed tool outputs:
     sources: ['guide-d1', 'sdk-hooks', 'cc-hooks', 'eng-writing-tools', 'eng-context', 'app-authored'],
     notes: [
       {
-        date: '2026-11-20',
-        text: 'Hook field names are version-sensitive. The example uses `hookSpecificOutput` with `permissionDecision` / `permissionDecisionReason` for PreToolUse and `updatedMCPToolOutput` for replacing an MCP tool result in PostToolUse, plus `HookMatcher` in the Python SDK. Whether a PostToolUse hook can replace the output of built-in (non-MCP) tools, and the exact input field names (`tool_name`, `tool_input`, `tool_response`, `session_id`), should be verified against the current Agent SDK hooks documentation before use. Docs could not be fetched when this lesson was written.',
+        date: '2026-11-21',
+        text: 'The exam guide confirms both patterns taught here (PostToolUse transformation of tool results, and interception hooks that block policy-violating calls). Hook field names are version-sensitive. The example uses `hookSpecificOutput` with `permissionDecision` / `permissionDecisionReason` for PreToolUse and `updatedMCPToolOutput` for replacing an MCP tool result in PostToolUse, plus `HookMatcher` in the Python SDK. Whether a PostToolUse hook can replace the output of built-in (non-MCP) tools, and the exact input field names (`tool_name`, `tool_input`, `tool_response`, `session_id`), should be verified against the current Agent SDK hooks documentation before use. Docs could not be fetched when this lesson was revised.',
       },
     ],
   },
@@ -350,12 +350,12 @@ Observed tool outputs:
       },
     ],
     learningPoints: [
-      'Explain the difference between a fixed sequential pipeline and dynamic adaptive decomposition.',
-      'Design a per-item analysis pass followed by a cross-item integration pass for a large, predictable review task.',
-      'Describe the orchestrator-workers pattern and what the orchestrator must pass to each worker.',
-      'Recognize attention dilution when a single giant pass is used for many inputs.',
-      'Recognize over-engineering when dynamic decomposition is applied to a task whose steps are known in advance.',
-      'Choose a single call when the task is small enough that decomposition adds only latency and cost.',
+      'Decide between a fixed sequential pipeline (prompt chaining) and dynamic decomposition that adapts to intermediate findings.',
+      'Design a prompt chain for a review: analyze each file on its own, then run a separate cross-file integration pass, to avoid attention dilution.',
+      'Explain the value of an adaptive investigation plan that generates new subtasks from what each step discovers.',
+      'Match the pattern to the work: prompt chaining for predictable multi-aspect reviews, dynamic decomposition for open-ended investigations.',
+      'Decompose an open-ended task such as adding tests to a legacy codebase: map the structure, find high-impact areas, then follow a prioritized plan that adapts as dependencies appear.',
+      'Recognize over-engineering (dynamic planning for fixed steps) and choose a single call when the task is small.',
     ],
     concept: `Big tasks go better when you split them up. The real question is **who decides the split, and when**.
 
@@ -374,6 +374,16 @@ If you cannot know the steps until you see intermediate results, *the model* sho
 - **Dynamic decomposition**: model-generated subtasks that adapt to findings.
 - **Orchestrator-workers**: coordinator plans, delegates to workers, and synthesizes; workers do not see the coordinator's conversation, so the orchestrator must pass each one what it needs.
 - **Integration pass**: a step focused only on interactions between items.
+
+### Open-ended work: map, prioritize, adapt
+
+Some tasks are open-ended without being a mystery. "Add comprehensive tests to this legacy codebase" has no fixed step list, and trying to test every file in alphabetical order wastes effort on dead code. Decompose it in three moves:
+
+1. **Map the structure** first: modules, entry points, how code is wired together, what tests exist.
+2. **Identify high-impact areas**: code that handles money or data integrity, changes often, or has many callers, and that has no tests yet.
+3. **Create a prioritized plan that adapts**: start with the top item, and when you discover a dependency (say, the billing module cannot be tested until a database wrapper is made injectable), insert that work into the plan and re-rank.
+
+This is the value of an adaptive plan: subtasks come from what each step reveals, rather than from a list written before anything was read.
 
 Hybrids are common: a fixed outer pipeline with one dynamic step inside, or a dynamic investigation whose final report step is fixed. A small task, such as classifying one message, needs no decomposition at all.
 
@@ -506,8 +516,14 @@ Hybrids are common: a fixed outer pipeline with one dynamic step inside, or a dy
           answer: 'Dynamic adaptive decomposition',
           why: 'Open-ended research. An orchestrator should plan, delegate searches to workers, and add subtasks as evidence points somewhere new.',
         },
+        {
+          id: 'e6',
+          text: 'Add meaningful tests to a 200k-line legacy service with almost no existing tests.',
+          answer: 'Dynamic adaptive decomposition',
+          why: 'Map the structure first, rank high-impact untested areas, then work through a prioritized plan that changes as dependencies (untestable wrappers, hidden globals) are discovered.',
+        },
       ],
-      solution: `Apply the whiteboard test. Tasks e1 and e4 have a fixed list of steps, so a code-defined pipeline gives predictable cost and step-level debugging; e4 also shows the per-file plus integration-pass pattern. Tasks e2 and e5 are investigations whose next step depends on what was found, so an orchestrator generating subtasks fits. Task e3 is one small decision, and any decomposition would be over-engineering.`,
+      solution: `Apply the whiteboard test. Tasks e1 and e4 have a fixed list of steps, so a code-defined pipeline gives predictable cost and step-level debugging; e4 also shows the per-file plus integration-pass pattern. Tasks e2 and e5 are investigations whose next step depends on what was found, so an orchestrator generating subtasks fits. Task e6 is open-ended too: map, prioritize by impact, and let the plan adapt as dependencies surface. Task e3 is one small decision, and any decomposition would be over-engineering.`,
     },
     check: [
       {
@@ -555,6 +571,10 @@ Hybrids are common: a fixed outer pipeline with one dynamic step inside, or a dy
       {
         front: 'How do you review many files without attention dilution but still catch cross-file bugs?',
         back: 'Run focused per-file passes (in parallel), then a separate integration pass over their summaries and changed interfaces that looks only at cross-file issues.',
+      },
+      {
+        front: 'How do you decompose "add comprehensive tests to a legacy codebase"?',
+        back: 'Map the structure first, identify high-impact untested areas, then follow a prioritized plan that you re-rank as dependencies are discovered. Do not march file by file through the tree.',
       },
       {
         front: 'What are the costs of using an orchestrator for a predictable task?',

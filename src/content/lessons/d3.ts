@@ -232,15 +232,18 @@ Standards that apply here (chosen by the billing maintainers):
       { term: '$ARGUMENTS', definition: 'Placeholder in a command or skill body replaced by whatever the user types after the command name, e.g. `/fix-issue 482`.' },
       { term: 'Skill', definition: 'A directory `.claude/skills/<name>/` (project) or `~/.claude/skills/<name>/` (personal) containing `SKILL.md` and optional supporting files. Claude can load it on demand when its description matches the task.' },
       { term: 'description (frontmatter)', definition: 'The text Claude uses to decide when a skill is relevant. A vague description means the skill is not discovered.' },
-      { term: 'allowed-tools', definition: 'Frontmatter listing tools the command or skill may use without a permission prompt while it runs, e.g. `Read, Grep, Bash(gh issue view:*)`.' },
+      { term: 'allowed-tools', definition: 'Skill frontmatter that restricts which tools the skill can use while it runs, e.g. `Read, Grep, Glob` for an analysis skill, so it cannot take actions outside that list.' },
+      { term: 'argument-hint', definition: 'Skill frontmatter naming the parameter(s) the skill needs, e.g. `<issue-number>`, so a developer who invokes it without arguments is prompted for them.' },
       { term: 'context: fork', definition: 'Skill frontmatter that runs the skill in an isolated subagent context; only its result returns to the main conversation.' },
     ],
     learningPoints: [
-      'Create project commands in .claude/commands/ and personal ones in ~/.claude/commands/, using $ARGUMENTS for input.',
-      'Write a SKILL.md with frontmatter: a discovery-quality description, allowed-tools, argument-hint, and context: fork where isolation helps.',
-      'Choose between a skill (loaded on demand) and CLAUDE.md (always loaded) based on how often the guidance is needed.',
-      'Use context: fork for verbose skills so their intermediate output does not flood the main conversation.',
-      'Keep personal variants under ~/.claude/ with a distinct name instead of editing the shared project file.',
+      'Put team commands in project .claude/commands/ (shared through version control) and personal ones in ~/.claude/commands/, using $ARGUMENTS for input.',
+      'Write a .claude/skills/<name>/SKILL.md whose frontmatter configures context: fork, allowed-tools, and argument-hint alongside a discovery-quality description.',
+      'Use context: fork to run verbose (codebase analysis) or exploratory (brainstorming alternatives) skills in an isolated sub-agent so their output does not pollute the main conversation.',
+      'Use allowed-tools to restrict what a skill can do while it runs, for example only file reads and writes so it cannot run destructive commands.',
+      'Use argument-hint so developers who invoke a skill without arguments are prompted for the required parameters.',
+      'Create personal variants of team skills in ~/.claude/skills/ under different names so teammates are unaffected.',
+      'Choose a skill for on-demand, task-specific workflows and CLAUDE.md for always-loaded, universal standards.',
     ],
     concept: `Both commands and skills package instructions you would otherwise retype. They differ in **who triggers them** and **when they cost context**.
 
@@ -249,9 +252,9 @@ A **custom slash command** is a saved prompt. You type \`/name\` and the file's 
 A **skill** is a folder: \`.claude/skills/<name>/SKILL.md\` (project) or \`~/.claude/skills/<name>/SKILL.md\` (personal), plus any reference files or scripts it needs. Its YAML frontmatter matters:
 
 - \`name\` and **\`description\`** — until a skill is used, essentially only this metadata sits in context. Claude reads the description to decide whether the skill applies, so write *what it does and when to use it* in concrete words ("Use when adding or altering database tables").
-- \`allowed-tools\` — tools the skill may use without prompting, scoped as tightly as possible (\`Bash(pnpm migrate:create:*)\` rather than all of Bash).
-- \`argument-hint\` — the hint shown when someone invokes it by name, e.g. \`<issue-number>\`.
-- \`context: fork\` — runs the skill in an isolated subagent context. Use it for noisy work (audits, broad searches) where you only want the conclusion back.
+- \`allowed-tools\` — **restricts** which tools the skill can use while it executes. A scaffolding skill limited to \`Read, Write, Edit\` can create files but cannot run shell commands, so it cannot \`rm\`, reset, or push; an analysis skill limited to \`Read, Grep, Glob\` cannot change anything. Scope it as tightly as the job allows (\`Bash(pnpm migrate:create:*)\` rather than all of Bash).
+- \`argument-hint\` — names the parameter the skill needs, e.g. \`<issue-number>\`. When a developer invokes the skill without arguments, the hint prompts them for what is required instead of letting the skill guess.
+- \`context: fork\` — runs the skill in an isolated sub-agent context, so its output does not pollute the main conversation. Use it for **verbose** work (codebase analysis, audits, broad searches) and for **exploratory** work (brainstorming alternative designs) where you only want the conclusion back.
 
 ### Skills versus CLAUDE.md
 
@@ -259,7 +262,7 @@ CLAUDE.md is **always loaded**: every token is paid in every session. A skill is
 
 ### Personal variants
 
-If you want a different flavor of a team skill (a terser PR summary, a different checklist), do not edit the committed file: that changes it for everyone. Copy it to \`~/.claude/skills/\` under a distinct name, such as \`my-pr-summary\`, and adjust it there.
+If you want a different flavor of a team skill (a terser PR summary, a different checklist), do not edit the committed file: that changes it for everyone. Copy it to \`~/.claude/skills/\` under a **different name**, such as \`my-pr-summary\`, and adjust it there. The different name matters: your variant and the team's skill can coexist, and nobody has to wonder which one runs. Personal commands work the same way in \`~/.claude/commands/\`.
 
 > In newer Claude Code releases, custom commands have been folded into skills: a skill can also be invoked as \`/name\`, and existing \`.claude/commands/\` files keep working. The placement and sharing rules above are the same either way.`,
     example: {
@@ -320,9 +323,10 @@ description: Write a terse PR description (max 5 bullets, no headings) for my ow
 Summarize the current branch's diff against main in at most five bullets.`,
         },
       ],
-      walkthrough: `- **\`/fix-issue 482\`** expands \`$ARGUMENTS\` to \`482\` in both the heading and the \`gh issue view\` call. Because it is in \`.claude/commands/\`, every engineer has it after pulling. \`allowed-tools\` pre-approves only read-oriented tools and one narrow \`gh\` subcommand.
+      walkthrough: `- **\`/fix-issue 482\`** expands \`$ARGUMENTS\` to \`482\` in both the heading and the \`gh issue view\` call. Because it is in \`.claude/commands/\`, every engineer has it after pulling. \`allowed-tools\` limits it to reading, searching, editing, and one narrow \`gh\` subcommand.
+- **\`db-migration\`** declares \`argument-hint: <short description of the schema change>\`. An engineer who types just \`/db-migration\` is prompted for the change instead of Claude inventing one.
 - **\`db-migration\`** is discovered from its description: when someone says "add a \`cancelled_at\` column to appointments", the description's wording ("add ... columns") matches, so Claude loads the full procedure. The rest of the time only its short metadata is in context, unlike a CLAUDE.md section, which would be paid for in every session. The supporting \`reference/expand-contract.md\` file is read only if needed.
-- **\`dep-audit\`** uses \`context: fork\`. \`pnpm outdated\` and \`pnpm audit\` produce hundreds of lines; running them in a forked context means the main conversation receives only the ten-line summary.
+- **\`dep-audit\`** uses \`context: fork\`. \`pnpm outdated\` and \`pnpm audit\` produce hundreds of lines; running them in a forked context means the main conversation receives only the ten-line summary. Its \`allowed-tools\` list has no Edit, Write, or general Bash, so the audit cannot modify anything.
 - **\`my-pr-summary\`** is a personal variant. The team's committed PR-summary skill is untouched, and the distinct name avoids any question of which one wins if two skills share a name.`,
     },
     compare: {
@@ -408,8 +412,8 @@ Summarize the current branch's diff against main in at most five bullets.`,
     ],
     sources: ['guide-d3', 'cc-slash-commands', 'cc-skills', 'cc-best-practices'],
     notes: [
-      { date: NOTE_DATE, text: 'Newer Claude Code releases merged custom slash commands into skills: skills can be invoked as `/name` and `.claude/commands/` files continue to work. Exact behavior when a command and a skill share a name, and which location wins when project and personal skills share a name, may vary by version. Verify against current docs.' },
-      { date: NOTE_DATE, text: 'Skill frontmatter keys beyond `name` and `description` (for example `allowed-tools`, `context: fork`, an `agent` field selecting the subagent type for forked skills, `argument-hint`, and keys that control whether Claude may invoke a skill automatically) have been added over several releases. Verify key names and semantics against the current Skills docs.' },
+      { date: NOTE_DATE, text: 'Current Claude Code releases have merged custom slash commands into skills: skills can be invoked as `/name` and `.claude/commands/` files keep working. The exam guide still distinguishes project `.claude/commands/` from user `~/.claude/commands/`, which is what this lesson teaches. Behavior when a command and a skill share a name may vary by version.' },
+      { date: NOTE_DATE, text: 'The exam guide describes `allowed-tools` as restricting tool access during skill execution, and that is the meaning to use on the exam. Some current product docs describe the key as tools the skill may use without asking for permission. Check current docs before relying on it as your only safety control. Other frontmatter keys (for example an `agent` field for forked skills) are not exam topics.' },
     ],
   },
 

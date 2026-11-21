@@ -100,9 +100,11 @@ Customer is frustrated about repeated roaming fees.`,
       ],
       walkthrough: `The summary is not wrong in spirit, but every value a refund depends on has blurred: $137.42 became "roughly $140", two dates became "early this year", and the invoice ID vanished. If the agent issued a refund from the summary it might refund the wrong amount, or exceed the $150 cap once both items are counted.
 
-The case-facts block fixes this because it is **never summarized**. The harness keeps it as structured data, updates fields when a fact changes (for example, \`status\` moving from \`under_review\` to \`refund_offered\`), and places it at the top of each request so it is not lost in the middle. Note what is *not* in it: the customer's mood and the small talk. Those belong in the narrative summary.
+The case-facts block fixes this because it is **never summarized**. The harness keeps it as structured data, updates fields when a fact changes (for example, \`status\` moving from \`under_review\` to \`refund_offered\`), and places it at the top of each request so it is not lost in the middle. It also keeps the customer's stated expectation (credit before the 12 May bill), which the summary had dropped entirely. Note what is *not* in it: the customer's mood and the small talk. Those belong in the narrative summary.
 
-The trimmed tool output shows the second lever. The raw transaction record included routing codes, tax jurisdiction blocks, and audit metadata. Only seven fields matter for this decision, so only seven enter context. The \`usage_sessions: 0\` field is the evidence that supports the refund commitment, and it is now easy to find instead of buried in a large blob.`,
+The \`issues\` layer matters because this session has two disputes on the same invoice. Each issue keeps its own amount, date, status, and commitment, so the agent cannot apply the roaming refund promise to the data top-up or mix up the two amounts.
+
+All of this sits on top of the full message history: every request still sends the (partly summarized) conversation, including tool calls and results. That is why the trimmed tool output is the second lever. The raw transaction record had 58 fields, including routing codes, tax jurisdiction blocks, and audit metadata, and it would have been re-sent on every later turn. Only seven fields matter for this decision, so only seven enter context. The \`usage_sessions: 0\` field is the evidence that supports the refund commitment, and it is now easy to find instead of buried in a large blob.`,
     },
     compare: {
       question: 'How should a long-running support agent keep exact transactional details available late in a conversation?',
@@ -142,6 +144,7 @@ The trimmed tool output shows the second lever. The raw transaction record inclu
         { id: 'i2', text: 'The 41-field get_customer result', answer: 'Trim to relevant fields', why: 'Only customer_id, plan, and verification status are used; the rest is noise that consumes context and buries what matters.' },
         { id: 'i3', text: 'Agent promise to waive the late fee if the refund is approved', answer: 'Pin in case facts', why: 'A commitment is a fact the agent must honor later; losing it causes broken promises or inconsistent answers.' },
         { id: 'i4', text: 'Customer was on a train when they started chatting', answer: 'Safe to summarize', why: 'Incidental context with no bearing on any action; losing it costs nothing.' },
+        { id: 'i7', text: 'Customer said they need the refund to land before their 12 May bill', answer: 'Pin in case facts', why: 'A customer-stated expectation with a date is exactly what summaries soften into "soon"; the agent needs it to set a realistic promise.' },
         { id: 'i5', text: 'Three pages of invoice line items where two lines are disputed', answer: 'Trim to relevant fields', why: 'Keep the two disputed lines (and totals if needed) and drop the rest before it enters context.' },
         { id: 'i6', text: 'Customer\'s detailed account of frustration with earlier calls', answer: 'Safe to summarize', why: 'Tone and history matter for how the agent responds, and a one-line summary ("frustrated by repeated contacts") preserves that.' },
       ],
@@ -187,7 +190,7 @@ The trimmed tool output shows the second lever. The raw transaction record inclu
     ],
     review: [
       { front: 'Why does progressive summarization hurt transactional tasks?', back: 'Each pass rounds, merges, or drops exact amounts, dates, and IDs, and actions depend on exactly those values.' },
-      { front: 'What goes in a case-facts block?', back: 'IDs, amounts, dates, verification status, commitments, and open questions, kept structured, never summarized, and re-injected each turn.' },
+      { front: 'What goes in a case-facts block?', back: 'Order numbers, amounts, dates, statuses, verification, commitments, and customer-stated expectations, kept structured, never summarized, and included in every prompt; with several issues, one record per issue.' },
       { front: 'Two placement tactics against lost-in-the-middle?', back: 'Put key findings at the start (critical constraints can be restated at the end) and organize long inputs under clear section headers.' },
     ],
     sources: ['guide-d5', 'eng-context', 'api-context-windows', 'sdk-hooks', 'app-authored'],

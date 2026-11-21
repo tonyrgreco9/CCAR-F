@@ -773,26 +773,28 @@ This is the same reasoning as the invoice without a PO number: a schema that can
       { term: 'detected_pattern', definition: 'A field naming the rule or pattern behind a finding, so you can aggregate which patterns humans accept or dismiss and refine prompts.' },
     ],
     learningPoints: [
-      'Validate extracted records semantically in code (formats, arithmetic, cross-field rules, placeholder detection).',
-      'Retry with the specific validation errors and the source, not a generic "try again".',
-      'Distinguish failures a retry can fix (value present but mis-formatted or misread) from those it cannot (value absent).',
+      'Distinguish semantic validation errors (values that do not sum, a value in the wrong field) from schema syntax errors, which tool use already eliminates, and catch the semantic ones in code.',
+      'Retry with error feedback: send a follow-up that contains the original document, the failed extraction, and the specific validation errors.',
+      'Tell when a retry will work (format mismatches, structural output errors) and when it cannot (the information is absent, for example only in an external document that was not provided).',
       'Route absent-information failures to null, human review, or a client rule rather than looping.',
-      'Add self-correction fields such as stated_total, calculated_total, and conflict_detected to surface inconsistencies.',
-      'Use detected_pattern fields to track which findings humans dismiss and feed that back into criteria.',
+      'Design self-correction flows: extract calculated_total alongside stated_total and add a conflict_detected flag for inconsistent source data.',
+      'Add a detected_pattern field to structured findings so dismissed findings can be analyzed by the code construct that triggered them.',
     ],
     concept: `Lesson 4.3 removed syntax errors. What is left are semantic errors, and code can catch many of them: a date that is not ISO, a total that does not equal the sum of line items, a PO string that looks like a placeholder. The question is what to do next.
 
 ### Retry with the specific error
 
-A generic "that was wrong, try again" gives the model nothing to fix. A useful retry sends back **the exact validation errors** plus the source document:
+A generic "that was wrong, try again" gives the model nothing to fix. A useful follow-up request contains three things: **the original document**, **the failed extraction**, and **the exact validation errors**:
 
 > \`total\` is 1.2405 but line items sum to 1240.50. The source may use a comma as the decimal separator. Re-extract.
 
-When the correct value **is in the source** and the first attempt mis-formatted or misread it, this usually works, often on the first retry. Cap retries at a small number (1–2) and then route to a human.
+With all three, the model can re-read the source, see what it produced, and change only what is wrong. When the correct value **is in the source** and the first attempt mis-formatted it or put it in the wrong place (format mismatches, structural output errors such as a value in the wrong field or a missing line item), this usually works, often on the first retry. Cap retries at a small number (1–2) and then route to a human.
 
 ### When a retry cannot help
 
 Go back to the invoice with no purchase-order number. If the client requires a PO and the extracted value is \`null\`, retrying with "po_number is required" cannot produce a real PO. The information is **absent from the source**. Worse, pressure to satisfy the validator invites exactly the fabrication you made the field nullable to avoid ("PO-0000"). The right move is to stop and route: human review, a request to the supplier, or a client-specific rule.
+
+The same is true when the value lives **in another document you did not send**. An invoice that says "unit prices per framework agreement FA-2291" cannot be checked against those prices on retry: the agreement is not in the request, so the only things a retry can produce are guesses. Either supply the agreement in a new request or route the record.
 
 So classify each failure first:
 
@@ -806,7 +808,14 @@ Ask the model to record what it saw and what it computed: \`stated_total\` (as p
 
 ### Feedback loops
 
-For findings that humans review (review comments, anomaly flags), include a \`detected_pattern\` field (for example, \`"duplicate-invoice-number"\`). When reviewers dismiss findings, aggregate dismissals by pattern. A pattern dismissed 80% of the time is a candidate for tighter criteria or removal (lesson 4.1).`,
+For findings that humans review (code review comments, anomaly flags), include a \`detected_pattern\` field naming the construct that triggered the finding:
+
+\`\`\`json
+{ "location": "api/orders.ts:88", "issue": "possible null dereference",
+  "detected_pattern": "optional-chain-missing-after-validated-lookup", "dismissed": true }
+\`\`\`
+
+When developers dismiss findings, group dismissals by \`detected_pattern\`. Without the field you only know that "about 30% of findings are dismissed"; with it you can see that one pattern accounts for most of them and fix that pattern's criteria or examples (lessons 4.1 and 4.2). A pattern dismissed 80% of the time is a candidate for tighter criteria or temporary removal.`,
     example: {
       intro:
         'Ledgerline validates every extracted invoice in code. The trace shows one record with two failures: one repairable by retry, one not. The invoice is the Nordvik invoice from lesson 4.3 (no PO number), and the client requires a PO.',
@@ -874,7 +883,7 @@ export function validateInvoice(r: Invoice, client: ClientRules): Issue[] {
 }`,
         },
       ],
-      walkthrough: `The validator found two problems and labeled each with \`retryable\`.
+      walkthrough: `The validator found two problems and labeled each with \`retryable\`. The retry is a follow-up in the same conversation, so the request carries all three things a correction needs: the invoice text (the first user message), the failed extraction (the previous \`tool_use\` input), and the specific error (the \`tool_result\` below).
 
 1. **invoice_date "14.10.2026"** is present in the source, just not in ISO format. The retry message names the field, the rule, and the source convention (DD.MM.YYYY). The second attempt returns \`2026-10-14\`. Fixed in one retry.
 2. **po_number null, client requires PO.** The PO is not printed anywhere. No retry can create it, so this error is deliberately *not* sent back to the model. The retry message even says "do not change po_number", to avoid pressuring it into a placeholder. The record goes to \`needs_review\` with a specific reason.
