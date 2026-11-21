@@ -16,6 +16,7 @@ bun run dev        # http://localhost:4317 — serves source with on-the-fly bun
 bun run build      # production bundle in dist/
 bun run preview    # serve dist/ on http://localhost:4317
 bun run check      # typecheck + content validation + unit tests + build
+bun run build:single   # one self-contained HTML file in dist-single/ (GitHub Pages, or open from disk)
 node e2e/walkthrough.mjs   # browser walkthrough (needs Playwright + Chromium; run after build)
 ```
 

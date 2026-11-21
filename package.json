@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "bun scripts/serve.ts --dev",
     "build": "bun scripts/build.ts",
+    "build:single": "bun scripts/build-single.ts",
     "preview": "bun scripts/serve.ts",
     "typecheck": "tsc --noEmit -p .",
     "test": "bun test tests/",
