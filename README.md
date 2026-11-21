@@ -12,14 +12,14 @@ browser's localStorage.
 Requires [Bun](https://bun.sh) ≥ 1.2 (the build uses Bun's built-in bundler and test runner).
 
 ```bash
-bun run dev        # http://localhost:5173 — serves source with on-the-fly bundling
+bun run dev        # http://localhost:4317 — serves source with on-the-fly bundling
 bun run build      # production bundle in dist/
-bun run preview    # serve dist/ on http://localhost:5173
+bun run preview    # serve dist/ on http://localhost:4317
 bun run check      # typecheck + content validation + unit tests + build
 node e2e/walkthrough.mjs   # browser walkthrough (needs Playwright + Chromium; run after build)
 ```
 
-`PORT=8080 bun run preview` changes the port.
+The default port is 4317. `PORT=8080 bun run dev` changes it; if the port is taken, the server says so and exits.
 
 ## What's inside
 

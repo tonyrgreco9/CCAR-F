@@ -6,7 +6,7 @@ const { chromium, devices } = require('playwright'); // pre-installed globally (
 import { spawn } from 'child_process';
 import { mkdirSync } from 'fs';
 
-const PORT = 5199;
+const PORT = 5199; // separate from the 4317 default
 const BASE = `http://localhost:${PORT}/`;
 mkdirSync('e2e/screens', { recursive: true });
 const server = spawn('bun', ['scripts/serve.ts'], { env: { ...process.env, PORT: String(PORT) }, stdio: 'ignore' });
