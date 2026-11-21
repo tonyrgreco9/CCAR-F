@@ -430,24 +430,27 @@ o5  isError=true  {"errorCategory":"permission","isRetryable":false,"message":"S
       { term: 'Forced tool call', definition: 'Setting tool_choice to {"type":"tool","name":"..."} so the response must be a call to that specific tool.' },
     ],
     learningPoints: [
-      'Explain why giving an agent many tools degrades tool selection and increases misuse.',
-      'Scope each agent\'s tools to its role, and keep high-risk tools away from agents that do not need them.',
-      'Decide when to give an agent a narrow cross-role tool instead of routing every request through the coordinator.',
-      'Choose tool_choice auto, any, a forced tool, or none for a given step and explain the trade-off.',
-      'Use a forced tool to guarantee structured output or a mandatory first step, and any when the right tool depends on the input.',
+      'Explain why giving an agent many tools (around 18 rather than 4–5) degrades selection reliability, and why agents given tools outside their specialization misuse them.',
+      'Restrict each subagent\'s tool set to its role, adding only limited cross-role tools for specific high-frequency needs.',
+      'Replace generic tools with constrained alternatives (e.g. a document loader that validates URLs instead of open-ended URL fetching).',
+      'Give a scoped cross-role tool (such as a simple fact-verification lookup) for the common case while routing complex cases through the coordinator.',
+      'Choose tool_choice "auto", "any", or a forced tool ({"type": "tool", "name": ...}) for a given step; use "any" to guarantee a tool call instead of conversational text.',
+      'Force a specific tool to run first (e.g. metadata extraction before enrichment) and handle the following steps in follow-up turns.',
     ],
-    concept: `Every tool you give an agent is one more option it must consider on every turn. With a handful of well-described tools, selection is easy. With dozens, many similar, the model is more likely to pick a near-miss, call tools it does not need, or wander outside its job. Each definition also consumes context. So the default is: **give each agent the tools its role needs, and no more.**
+    concept: `Every tool you give an agent is one more option it must consider on every turn. With a handful of well-described tools, selection is easy. Give the same agent 18 tools, several of them similar, instead of the 4–5 its job needs, and selection becomes less reliable: there are more near-misses to choose between, more tools it does not need, and more definitions consuming context. So the default is: **give each agent the tools its role needs, and no more.**
 
-In a coordinator–subagent system this falls out of the roles. A web search agent gets search and fetch tools; a report writer gets none of the search tools; only an agent that must move money gets \`issue_refund\`. Scoping also limits damage: an agent that never had a delete tool cannot misuse one.
+Tools outside an agent's specialization also invite **misuse**. A synthesis agent that happens to have web search will start searching instead of synthesizing what it was given, duplicating the search agent's job with less care about sources. In a coordinator–subagent system scoping falls out of the roles: a web search agent gets search and fetch tools; a synthesis or report agent gets none of the search tools; only an agent that must move money gets \`issue_refund\`. An agent that never had a delete tool cannot misuse one.
 
-Strict scoping has a cost when one role constantly needs a small piece of another's capability. If a writer must check a figure in nearly every paragraph, routing each check through the coordinator to the data agent adds round trips and latency. A good compromise is a **scoped cross-role tool**: give the writer a narrow, read-only \`lookup_metric(metric_id, period)\` rather than the data agent's full query toolkit.
+Scoping is also about **how generic** each tool is. A general \`fetch_url\` lets a document agent open any address, including arbitrary web pages and internal endpoints. Replacing it with a constrained \`load_document(url)\` that only accepts URLs from the approved document store, and rejects everything else with a validation error, keeps the capability the role needs and drops the rest.
+
+Strict scoping has a cost when one role constantly needs a small piece of another's capability. If a synthesis agent must confirm a date or a name in most paragraphs, routing each check through the coordinator to the search agent adds round trips and latency. The compromise is a **scoped cross-role tool**: give the synthesis agent a narrow \`verify_fact\` lookup for the simple, high-frequency checks, and keep routing anything that needs real investigation through the coordinator to the specialist.
 
 The second control is **tool_choice**, which shapes a single request:
 
 - **auto** (default): the model may answer in text or call a tool. Right for open-ended agent loops.
 - **any**: the model must call *some* tool but picks which. Useful when the next step must be a tool action but the right one depends on the input, e.g. classifying a document of unknown type by calling one of several type-specific extraction tools.
-- **tool** with a name: the model must call *that* tool. Use it to force a mandatory first step (always call \`get_customer\` before anything else) or to guarantee **structured output** by forcing a tool whose input schema is the output format.
-- **none**: tools stay defined but cannot be called, e.g. for a final summary turn.
+- **tool** with a name (\`{"type": "tool", "name": "extract_metadata"}\`): the model must call *that* tool. Use it to force a mandatory first step, for example extracting a document's metadata before any enrichment tool runs, or to guarantee **structured output** by forcing a tool whose input schema is the output format. Forcing applies to one request: send the tool result back and continue the later steps (enrichment, lookups) in **follow-up turns** with \`auto\` or \`any\`.
+- **none** (also available in the API): tools stay defined but cannot be called, e.g. for a final summary turn.
 
 Forcing a tool guarantees the call happens and the input matches the schema's shape; it does not guarantee the values are correct, so validate them.
 
@@ -472,16 +475,17 @@ Forcing a tool guarantees the call happens and the input matches the schema's sh
       prompt: 'You search the web and return sources with URLs, dates, and quotes...',
       tools: ['WebSearch', 'WebFetch'],
     },
-    'data-analyst': {
-      description: 'Queries the internal metrics warehouse and returns figures with query provenance.',
-      prompt: 'You answer quantitative questions using the metrics warehouse...',
-      tools: ['mcp__metrics__run_query', 'mcp__metrics__describe_table'],
+    'doc-analysis': {
+      description: 'Analyzes documents from the approved document store and returns extracted findings.',
+      prompt: 'You analyze the documents you are given...',
+      // Constrained loader instead of a generic fetch_url:
+      tools: ['mcp__docs__load_document', 'mcp__docs__extract_data_points'],
     },
-    'report-writer': {
-      description: 'Writes the cited report from findings provided by the coordinator.',
-      prompt: 'You write the report. Check any figure you state with lookup_metric...',
-      // Narrow, read-only cross-role tool instead of the full query toolkit:
-      tools: ['Read', 'Write', 'mcp__metrics__lookup_metric'],
+    'synthesis': {
+      description: 'Combines findings provided by the coordinator into a cited synthesis.',
+      prompt: 'You synthesize the findings you are given. Use verify_fact only for simple checks...',
+      // No search tools; one narrow cross-role tool for frequent simple checks:
+      tools: ['Read', 'mcp__facts__verify_fact'],
     },
   },
 };`,
@@ -510,31 +514,33 @@ Forcing a tool guarantees the call happens and the input matches the schema's sh
 }`,
         },
       ],
-      walkthrough: `In the agent configuration, each role sees a short, relevant list. The coordinator can delegate (the Task tool) but cannot search or query directly, which keeps it focused on planning and aggregation. The data analyst has the warehouse tools; the web agent does not. The writer gets one read-only \`lookup_metric\` tool so it can verify a number without a round trip through the coordinator, but it cannot run arbitrary queries.
+      walkthrough: `In the agent configuration, each role sees a short, relevant list of two or three tools. The coordinator can delegate (the Task tool) but cannot search directly, which keeps it focused on planning and aggregation. The document agent has \`load_document\`, which only accepts store URLs, instead of a generic URL fetcher, so it cannot drift into web browsing. The synthesis agent has no search tools at all, so it cannot start its own research; it gets one narrow \`verify_fact\` tool so it can confirm a date or name without a round trip through the coordinator. Anything that needs real investigation still goes back to the coordinator and the web search agent.
 
 In the API request, \`tool_choice\` names \`record_invoice\`, so the response must be a \`tool_use\` block for that tool with input shaped by the schema. That removes "the model answered in prose" and JSON syntax problems. It does not stop the model from putting a wrong total in the \`total\` field, so downstream code still validates (for example, that line items sum to the total). \`due_date\` is nullable so the model is not pushed to invent a date that the invoice does not contain.
 
-If the input could be an invoice, a receipt, or a contract, you would define one extraction tool per type and use \`{"type": "any"}\`: a tool call is guaranteed, and the model picks the matching type.`,
+If the input could be an invoice, a receipt, or a contract, you would define one extraction tool per type and use \`{"type": "any"}\`: a tool call is guaranteed, and the model picks the matching type.
+
+A multi-step version works the same way. To make sure metadata is extracted before enrichment, send the first request with \`tool_choice\` forcing \`extract_metadata\`, return its \`tool_result\`, and send the next request with the enrichment tools and \`auto\` (or \`any\` if a call is still required). Forcing only ever governs the request it is set on.`,
     },
     compare: {
-      question: 'The report writer needs to verify figures in most paragraphs. Give it a scoped lookup tool, or route every check through the coordinator?',
+      question: 'The synthesis agent needs to verify simple facts in most paragraphs. Give it a scoped lookup tool, or route every check through the coordinator?',
       a: {
-        title: 'Scoped cross-role tool on the writer',
-        body: 'Add a narrow, read-only `lookup_metric(metric_id, period)` to the writer. It verifies figures inline without waiting on the coordinator and data agent.',
+        title: 'Scoped cross-role tool on the synthesis agent',
+        body: 'Add a narrow `verify_fact(claim)` lookup to the synthesis agent. It confirms simple facts inline without waiting on the coordinator and the search agent; complex checks still go through the coordinator.',
         chooseWhen: 'The need is high-frequency, the capability can be made narrow and low-risk, and round-trip latency or cost matters.',
       },
       b: {
         title: 'Route through the coordinator',
-        body: 'The writer flags figures to verify; the coordinator delegates to the data agent, which has the full query tools, and passes results back.',
+        body: 'The synthesis agent flags claims to verify; the coordinator delegates to the web search agent, which has the full search tools, and passes results back.',
         chooseWhen: 'Verification is occasional, needs the full query capability or judgment about sources, or the capability is too risky to hand to another role.',
       },
-      decidingDetail: `Decide on **frequency and risk**. A capability the writer needs constantly, which can be cut down to a narrow read-only tool, belongs on the writer as a scoped cross-role tool. An occasional need, or one that requires the full, powerful toolset, should go through the coordinator to the specialist, keeping each agent's toolset small and its role clear.`,
+      decidingDetail: `Decide on **frequency and risk**. A capability the synthesis agent needs constantly, which can be cut down to a narrow, simple lookup, belongs on that agent as a scoped cross-role tool. An occasional need, or one that requires the full, powerful toolset, should go through the coordinator to the specialist, keeping each agent's toolset small and its role clear.`,
     },
     mistake: {
-      mistake: 'Giving every agent the full union of tools "so nobody gets stuck", or using tool_choice any/forced for an open-ended conversational agent.',
+      mistake: 'Giving every agent the full union of tools "so nobody gets stuck" (or generic tools like fetch_url where a constrained one would do), or using tool_choice any/forced for an open-ended conversational agent.',
       whyTempting: 'One shared tool list is simpler to configure, avoids "tool not available" failures, and forcing tools seems to make behavior more predictable.',
       howToRecognize: 'Agents call tools outside their role (the writer runs searches), selection errors rise as tools are added, context fills with tool definitions; with forced tool use, the agent cannot simply answer or ask a clarifying question and calls a tool when text was needed.',
-      fix: 'Define tools per role and add only narrow cross-role tools for proven high-frequency needs. Use tool_choice auto for open-ended loops, a forced tool for mandatory first steps or structured output, any when a tool call is required but the right tool depends on input, and none when tools must not be called on that turn.',
+      fix: 'Define tools per role (a handful each, not the full set), replace generic tools with constrained ones, and add only narrow cross-role tools for proven high-frequency needs. Use tool_choice auto for open-ended loops, a forced tool for a mandatory first step or structured output (then continue in follow-up turns), any when a tool call is required but the right tool depends on input, and none when tools must not be called on that turn.',
     },
     exercise: {
       prompt: 'Choose the tool_choice setting for each request.',
@@ -551,7 +557,7 @@ If the input could be an invoice, a receipt, or a contract, you would define one
         { id: 'e1', text: 'A support chat agent that may need to look things up, ask a clarifying question, or simply answer.', answer: 'auto', why: 'Open-ended: the model must be free to respond in text or call any tool.' },
         { id: 'e2', text: 'An extraction step must always return the schema of `record_claim` for downstream parsing.', answer: 'forced tool', why: 'Forcing that tool guarantees a call shaped by its input schema.' },
         { id: 'e3', text: 'Uploaded documents may be invoices, receipts, or contracts; each type has its own extraction tool, and a tool call is required.', answer: 'any', why: 'A call is mandatory, but which tool depends on the unknown document type.' },
-        { id: 'e4', text: 'Every new support conversation must start by calling `get_customer` to load verification status.', answer: 'forced tool', why: 'A mandatory first step is guaranteed by forcing that tool on the first request; later turns can return to auto.' },
+        { id: 'e4', text: 'An intake pipeline must run `extract_metadata` on each document before any enrichment tool is called.', answer: 'forced tool', why: 'Forcing `extract_metadata` on the first request guarantees it runs first; enrichment happens in follow-up turns with auto or any.' },
         { id: 'e5', text: 'A final turn should summarize the conversation for a human handoff; tool definitions stay in the request for cache reuse but must not be called.', answer: 'none', why: 'none keeps tools defined while preventing calls on that turn.' },
       ],
       solution: `Use **auto** whenever the model must decide whether a tool is needed at all. Use a **forced tool** when one specific call must happen (a mandatory first step, or structured output via a tool schema). Use **any** when some tool call must happen but the input determines which. Use **none** when tools must not be called on this turn. Forcing applies to a single request; switch back to auto for the rest of the loop.`,
@@ -597,7 +603,8 @@ If the input could be an invoice, a receipt, or a contract, you would define one
     review: [
       { front: 'Why scope tools per agent?', back: 'More and overlapping tools degrade selection, cost context, and widen what an agent can misuse. Give each role only what it needs.' },
       { front: 'tool_choice: auto / any / tool / none', back: 'auto: model decides. any: must call some tool. tool+name: must call that tool (first step, structured output). none: no tool calls this turn.' },
-      { front: 'When add a cross-role tool?', back: 'When a role needs a capability frequently and it can be made narrow and low-risk (e.g. read-only lookup), instead of round-tripping through the coordinator.' },
+      { front: 'When add a cross-role tool?', back: 'When a role needs a capability frequently and it can be made narrow and low-risk (e.g. a verify_fact lookup for the synthesis agent), while complex cases still route through the coordinator.' },
+      { front: 'Generic fetch_url on a document agent: what instead?', back: 'A constrained tool such as load_document that validates the URL belongs to the approved document source, so the agent keeps the capability its role needs and nothing more.' },
     ],
     sources: ['guide-d2', 'api-implement-tool-use', 'sdk-subagents', 'eng-multi-agent'],
     notes: [

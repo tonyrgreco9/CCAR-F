@@ -1,11 +1,11 @@
 import type { Lesson } from '../types';
 
 // Domain 4 — Prompt Engineering & Structured Output.
-// Original, app-authored lessons. learningPoints are an app decomposition of each task
-// statement; they have not been checked against the exam guide's Knowledge/Skills bullets
-// (the guide was not supplied).
+// Original, app-authored lessons. learningPoints restate the Knowledge/Skills bullets of the
+// CCAR-F Exam Guide v1.1 (task statements 4.1–4.6) in original wording; see coverage/d4.ts for
+// the bullet-by-bullet map. Notes flag product details that may have changed since the guide.
 
-const NOTE_DATE = '2026-11-20';
+const NOTE_DATE = '2026-11-21';
 
 export const lessons: Lesson[] = [
   // ---------------------------------------------------------------------------------------
@@ -24,12 +24,12 @@ export const lessons: Lesson[] = [
       { term: 'Severity rubric', definition: 'A short definition of each severity level with one or two concrete examples, so that two runs assign the same level to the same finding.' },
     ],
     learningPoints: [
-      'Explain why "be conservative" or "only report high-confidence issues" fails to lower false positives reliably.',
-      'Write report criteria as named categories with the conditions that must hold, plus an explicit skip list.',
-      'Define severity levels with concrete examples instead of adjectives.',
-      'Recognize that one noisy category erodes trust in all categories, and temporarily disable or tighten it.',
-      'Measure precision per category on a labeled sample before and after a criteria change.',
-      'Decide when a deterministic tool (linter, type checker) should own a category instead of the prompt.',
+      'Explain why an explicit criterion (e.g. "flag a comment only when what it claims contradicts what the code does") beats a vague one ("check comments are accurate").',
+      'Explain why general instructions such as "be conservative" or "only report high-confidence findings" do not raise precision the way specific categorical criteria do.',
+      'Explain how one high-false-positive category undermines developer trust in the accurate categories too.',
+      'Write review criteria that name what to report (bugs, security) and what to skip (minor style, local patterns), instead of relying on confidence-based filtering.',
+      'Temporarily disable a high-false-positive category to restore trust while you improve and re-measure its prompt.',
+      'Define each severity level with explicit criteria and a concrete code example so classification is consistent.',
     ],
     concept: `Imagine telling a new reviewer "only flag the important stuff". They will nod, and then flag whatever *they* think is important. A model does the same thing. Words like "conservative", "important", or "high confidence" do not tell it where the line is, so it draws its own line, and that line moves between runs and between files.
 
@@ -38,11 +38,13 @@ The fix is to say **what** to report and **what** to skip, in terms the model ca
 - Vague: "Be conservative. Only report issues you are highly confident about."
 - Explicit: "Report a finding only if it is one of: (1) a security flaw with a concrete path from untrusted input to a sensitive operation, (2) a correctness bug where you can name an input that produces a wrong result, (3) a resource leak on an error path. Do not report naming, formatting, comment wording, or anything the linter already enforces."
 
-The explicit version gives the model a test to apply to each candidate finding. Many false positives disappear because they simply do not match any listed category.
+The explicit version gives the model a test to apply to each candidate finding. Many false positives disappear because they simply do not match any listed category. The same holds for narrow checks: "check that comments are accurate" invites nitpicks about wording, while "flag a comment only when the behavior it claims contradicts what the code actually does" gives a checkable condition.
+
+Notice what the explicit version does *not* do: it does not ask the model to filter by its own confidence. "Only high-confidence findings" is still a disposition; the categories and the skip list (minor style, patterns that are normal in this codebase, linter-owned rules) are what move precision.
 
 ### Severity needs examples, not adjectives
 
-"Critical / major / minor" means little on its own. Give each level a one-line definition and an example from your codebase: *blocking* = "SQL built by string concatenation from a request parameter"; *non-blocking* = "missing null check on a value the caller already validated". Examples anchor the scale so the same finding gets the same level next week.
+"Critical / major / minor" means little on its own. Give each level an explicit criterion **and a short code example** from your codebase, for instance *blocking* = untrusted input reaches a sink, shown as \`db.query("... ORDER BY " + req.query.sort)\`; *non-blocking* = a contained defect, shown as a temp-file stream left open in a CLI script that exits immediately. Concrete code anchors the scale so the same finding gets the same level next week.
 
 ### Trust is shared across categories
 
@@ -76,15 +78,19 @@ Rate each issue as critical, major, or minor.`,
 2. correctness - you can state a concrete input or state that produces a wrong
                 result or exception. State it.
 3. resource   - a file, connection, or lock is not released on an error path.
+4. comment    - only when the behavior a comment claims contradicts what the
+                code does. Quote both.
 
 Do NOT report: naming, formatting, import order, comment wording, test style,
-anything enforced by eslint/prettier, or speculative "could be slow" remarks.
+code that follows an established local pattern in this repo, anything enforced
+by eslint/prettier, or speculative "could be slow" remarks.
 
-Severity:
-- blocking: exploitable or data-corrupting. Example: request param concatenated
-  into SQL in OrderRepo.find().
-- non-blocking: real but contained. Example: missing close() on a temp file in a
-  CLI script that exits immediately.
+Severity (criterion + code example for each level):
+- blocking: exploitable or data-corrupting.
+    db.query(\`SELECT * FROM orders ORDER BY \${req.query.sort}\`)   // OrderRepo.find()
+- non-blocking: real but contained.
+    const out = fs.createWriteStream(tmp); write(serialize(rows))  // scripts/, exits after
+    // no out.close() if serialize() throws
 
 If no finding meets these criteria, return an empty list.`,
         },
@@ -104,10 +110,12 @@ If no finding meets these criteria, return an empty list.`,
 The rewrite does three things:
 
 1. **Names categories with checkable conditions.** "Name the input and the sink" forces the model to ground a security claim in the diff instead of a hunch.
-2. **Adds a skip list.** Style is excluded outright, and the linter already owns formatting.
-3. **Anchors severity with examples** from this codebase.
+2. **Adds a skip list.** Style and established local patterns are excluded outright, and the linter already owns formatting. Comment findings survive only in their narrow, checkable form (claim contradicts code).
+3. **Anchors severity with a criterion and a code example** for each level, taken from this codebase.
 
-Performance is not in the new list at all. That is deliberate: the team switches it off while they write narrower criteria (for example, "an N+1 query inside a request handler") and test them on labeled diffs. Re-run the same 200-comment sample after the change and compare precision per category, not just overall.`,
+Notice there is no confidence threshold anywhere. Precision comes from what qualifies, not from asking the model how sure it feels.
+
+Performance is not in the new list at all. That is deliberate: its 9-in-71 hit rate was teaching developers to skim every comment, including the accurate security ones, so the team switches it off temporarily while they write narrower criteria (for example, "an N+1 query inside a request handler") and test them on labeled diffs. Re-run the same 200-comment sample after the change and compare precision per category, not just overall.`,
     },
     compare: {
       question: 'A review bot produces too many low-value comments. Should you tighten the wording of the existing instruction or rewrite it as explicit categories with a skip list?',
@@ -235,12 +243,13 @@ Notice that the skipped comments are not *wrong*; they are outside what the team
       { term: 'Format drift', definition: 'Run-to-run variation in output shape: field names, units, date formats, or extra prose.' },
     ],
     learningPoints: [
-      'Explain why 2–4 targeted examples often outperform a long list of rules for ambiguous cases.',
-      'Pick examples that cover the cases the model actually gets wrong, including ambiguous ones, rather than typical easy ones.',
-      'Show the reasoning for each example’s decision so the model learns the distinction, not just the answer.',
-      'Keep every example in exactly the output format you want, so examples also fix format drift.',
-      'Vary document layouts across examples so the model does not tie a field to one position or label.',
-      'Use examples that show informal measurements kept as written (not invented as precise numbers) to reduce hallucinated values.',
+      'Explain why few-shot examples are the most effective fix when detailed instructions alone still give inconsistently formatted or non-actionable output.',
+      'Write 2–4 targeted examples for ambiguous cases (which tool fits an ambiguous request, whether a branch-level test gap matters) that show why the chosen action beat plausible alternatives.',
+      'Explain how examples that show reasoning let the model generalize its judgment to new patterns instead of matching only the listed cases.',
+      'Include examples that demonstrate the exact output format, such as location, issue, severity, and suggested fix for each review finding.',
+      'Include examples that contrast an acceptable code pattern with a genuine issue, to cut false positives while still generalizing.',
+      'Use examples to reduce extraction hallucination: informal measurements, and varied document structures (inline citations vs bibliographies, a methodology section vs details embedded in the text).',
+      'Add examples of correct extraction from differently formatted documents when required fields come back empty or null although the value is present.',
     ],
     concept: `Rules describe behavior; examples *show* it. When a model handles typical documents well but wobbles on borderline ones, a handful of well-chosen examples usually fixes it faster than another paragraph of rules.
 
@@ -252,6 +261,19 @@ Notice that the skipped comments are not *wrong*; they are outside what the team
 - **The set varies layout.** If all examples have the PO number in the top-right header, the model may learn "top-right" instead of "PO number". Draw examples from different layouts: table-heavy, letter-style, scanned forms.
 
 Two to four targeted examples is a good starting range. More examples cost tokens and can over-anchor the model on surface features; fewer may not cover the ambiguous cases.
+
+When a prompt already has detailed instructions and output is *still* inconsistent, examples are the most effective next step: adding more rules tends to produce more rules to misread, while an example shows the answer and its shape at once.
+
+### Ambiguous actions and review findings
+
+Examples are not only for extraction. They show how to handle ambiguous cases anywhere: which tool an agent should call when a request could fit two tools, or whether an uncovered branch is a test gap worth reporting. For code review, two kinds of example pay off:
+
+- **Format examples**: every finding written the same way (location, issue, severity, suggested fix), so findings are consistent and actionable.
+- **Acceptable vs genuine**: a pattern that *looks* risky but is fine in this codebase, next to a real issue with the same surface shape, each with a reason. The model learns the distinction and applies it to cases you never listed.
+
+### Varied document structures
+
+Research papers cite inline ("Lee et al., 2021") or in a bibliography; methods sit in a dedicated section or are embedded in the results text. If every example uses one structure, the model returns empty or null for a required field whenever the structure differs. An example of each structure, showing where the value was found, fixes that.
 
 ### Informal measurements and hallucination
 
@@ -300,6 +322,25 @@ Leave quantity null and keep the text.</reasoning>
 </example>`,
         },
         {
+          lang: 'xml',
+          caption: 'Same technique in a code-review prompt: one format, acceptable pattern vs genuine issue',
+          code: `<example>
+<code>// telemetry/emit.ts
+try { await sendMetric(m) } catch { /* best-effort: metrics must never fail a request */ }</code>
+<reasoning>Swallowed error, but intentional and documented: telemetry is best-effort
+by team convention. Acceptable pattern. No finding.</reasoning>
+<findings>[]</findings>
+</example>
+
+<example>
+<code>// billing/charge.ts
+try { await ledger.write(entry) } catch { }</code>
+<reasoning>Same shape, different stakes: a failed ledger write is silently lost and
+the customer is charged with no record. Genuine issue.</reasoning>
+<findings>[{"location":"billing/charge.ts:41","issue":"ledger write failure is swallowed; charge proceeds without a ledger entry","severity":"blocking","suggested_fix":"remove the empty catch, or rethrow after logging so the charge is rolled back"}]</findings>
+</example>`,
+        },
+        {
           lang: 'text',
           caption: 'New input',
           code: `Job 4519 — swapped thermostat. Few metres of 18/2 wire, one wall plate.
@@ -321,7 +362,9 @@ Old thermostat taken away by customer.`,
 
 The layouts differ: free text, a dotted list, a conversational sentence. That stops the model from learning "quantities are after the dots".
 
-Every output uses the same keys, units ("m", "each", "bag", "tube"), and \`source_text\`. On the new note, "Few metres" is handled like "a couple of bags" (null, approximate), even though no example used the word "few". The reasoning lines taught the distinction "is there a reliable number?", which is what generalizes.`,
+Every output uses the same keys, units ("m", "each", "bag", "tube"), and \`source_text\`. On the new note, "Few metres" is handled like "a couple of bags" (null, approximate), even though no example used the word "few". The reasoning lines taught the distinction "is there a reliable number?", which is what generalizes.
+
+The code-review artifact applies the same ideas to findings. The two examples have the same surface shape (an empty \`catch\`) with opposite verdicts, and the reasoning names the difference (best-effort telemetry by convention versus a lost ledger write). That pair reduces false positives on accepted patterns without suppressing real ones, and the single findings format (location, issue, severity, suggested fix) makes every posted comment consistent and actionable.`,
     },
     compare: {
       question: 'The model handles normal notes well but is inconsistent on vague quantities and exclusions. Add more rules, or add a few targeted examples?',

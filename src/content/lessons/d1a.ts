@@ -262,6 +262,7 @@ def run_agent(system: str, tools: list, messages: list):
       { front: 'Which field decides whether the agent loop continues?', back: 'stop_reason. Continue on tool_use; finish on end_turn; handle max_tokens, pause_turn, stop_sequence, and refusal explicitly. Never parse the text.' },
       { front: 'How do tool results go back for a turn with several tool_use blocks?', back: 'One user message with a tool_result per tool_use, each tool_use_id matching, results first in the content; failures use is_error: true.' },
       { front: 'What is an iteration cap for?', back: 'A safety backstop against runaway loops. Frequent cap hits are a bug to investigate, not a setting to tune.' },
+      { front: 'Model-driven tool selection or a pre-configured decision tree?', back: 'Model-driven when the next step depends on what earlier results revealed; a fixed tree or sequence when the steps are the same every time. Rules that must never be skipped get code gates either way.' },
     ],
     sources: ['guide-d1', 'api-tool-use', 'api-implement-tool-use', 'api-stop-reasons', 'eng-building-agents'],
     notes: [
@@ -288,34 +289,43 @@ def run_agent(system: str, tools: list, messages: list):
       { term: 'Task decomposition', definition: 'Splitting a request into sub-tasks with clear objectives, boundaries, and output formats that together cover the whole request.' },
       { term: 'Aggregation', definition: 'Combining subagent outputs into one result while keeping sources, surfacing conflicts, and noting gaps.' },
       { term: 'Coverage check', definition: 'A coordinator step that compares the gathered results against every part of the original request before synthesis and re-delegates any gaps.' },
+      { term: 'Iterative refinement loop', definition: 'The coordinator evaluates the synthesized draft for gaps, sends targeted follow-up queries to the search or analysis subagents, and re-runs synthesis until coverage is sufficient or a round limit is reached.' },
     ],
     learningPoints: [
-      'Explain the hub-and-spoke pattern and why the coordinator, not the subagents, owns the plan, routing, and final synthesis.',
-      'Decompose a request into delegated tasks with an objective, scope boundary, tool guidance, and output format for each.',
-      'Aggregate subagent results while preserving source attribution and flagging conflicts and gaps.',
-      'Make the coordinator check coverage against the original request before synthesis and re-delegate to fill gaps.',
-      'Trace a narrow or incomplete final output back to the coordinator\'s decomposition instead of blaming subagents that did what they were asked.',
+      'Explain hub-and-spoke: the coordinator owns all communication between subagents, error handling, and routing of information, and routing everything through it gives observability and consistent error handling.',
+      'Explain that each subagent works in an isolated context and never automatically sees the coordinator\'s conversation, so the coordinator must hand it what it needs.',
+      'Describe the coordinator\'s jobs: decomposing the task, delegating, aggregating results, and choosing which subagents a query actually needs based on its complexity.',
+      'Partition scope across subagents (distinct subtopics or source types) so their work does not overlap.',
+      'Trace a narrow final output back to an overly narrow decomposition instead of blaming subagents that did what they were asked.',
+      'Run an iterative refinement loop: evaluate the synthesis for gaps, re-delegate targeted queries, and re-invoke synthesis until coverage is sufficient.',
       'Recognize when a single agent beats a multi-agent design: tightly coupled steps, small tasks, heavy shared context, or tight cost and latency budgets.',
     ],
-    concept: `A coordinator–subagent system splits one big job across several agents. A **coordinator** reads the request, decides what work is needed, hands pieces to **subagents**, and builds the final answer from what they return. Each subagent works in its own fresh context with its own instructions and tools, so it can explore deeply without filling the coordinator's context with raw search results.
+    concept: `A coordinator–subagent system splits one big job across several agents. A **coordinator** reads the request, decides what work is needed, hands pieces to **subagents**, and builds the final answer from what they return. Each subagent works in its own **isolated** context with its own instructions and tools, so it can explore deeply without filling the coordinator's context with raw search results. The flip side: a subagent does not inherit the coordinator's conversation. It has not seen the user's question, their clarifications, or other subagents' findings unless the coordinator writes them into its task.
 
 ### Hub-and-spoke
 
-All traffic flows through the coordinator. Subagents do not message each other; if the report writer needs the data analyst's numbers, the coordinator passes them along. This keeps one place responsible for the plan, makes the flow observable, and lets the coordinator apply consistent rules (citation format, error handling, budget) to everything.
+All traffic flows through the coordinator. Subagents do not message each other; if the report writer needs the data analyst's numbers, the coordinator passes them along. When a subagent fails, the failure comes back to the coordinator, which decides whether to retry, re-scope, or report the gap. This keeps one place responsible for the plan, gives you one log of what each agent received (observability), controls what information flows where, and lets the coordinator apply consistent rules (citation format, error handling, budget) to everything. Direct agent-to-agent shortcuts save a little latency and lose all of that.
+
+### Choosing which subagents to invoke
+
+A coordinator should not push every query through the full pipeline. It first reads what the query needs: "What was Acme's 2024 revenue?" may need only the data analyst; a broad market question may need web research, document analysis, and data together. Invoking only the needed subagents saves cost and latency, and the coordinator can add more later if the first results show a need.
 
 ### Decomposition and delegation
 
 The coordinator's most important output is the plan. Good delegated tasks are:
 
 - **Scoped**: one clear objective with explicit boundaries ("EU rules only, 2023 onward").
-- **Complete together**: the set of tasks covers every part of the request, without large overlaps.
+- **Complete together**: the set of tasks covers every part of the request.
+- **Partitioned**: each subagent gets a distinct slice (a subtopic, a region, or a source type such as filings versus news) and is told what belongs to the others, so two agents do not fetch and summarize the same material.
 - **Specified**: each says what to return (claims with source URL and date, or a table) so results can be merged.
 
 Vague delegation ("research battery regulation") produces overlapping, shallow, or mismatched results.
 
 ### Aggregation and coverage
 
-When results come back, the coordinator merges them, keeps each claim tied to its source, and surfaces conflicts instead of silently picking one value. Before writing the final answer it runs a **coverage check**: does each part of the original request have supporting results? If a region, time period, or sub-question is missing, the coordinator delegates again. This check belongs to the coordinator because only it holds the full request and the plan.
+When results come back, the coordinator merges them, keeps each claim tied to its source, and surfaces conflicts instead of silently picking one value. It then runs a **coverage check**: does each part of the original request have supporting results? If a region, time period, or sub-question is missing, the coordinator delegates again. This check belongs to the coordinator because only it holds the full request and the plan.
+
+The check can also run on the synthesis itself, as an **iterative refinement loop**: the synthesis subagent drafts the report, the coordinator compares the draft with the request's dimensions, sends targeted follow-up queries for each gap to the search or analysis subagents, and re-invokes synthesis with the new findings. It repeats until coverage is sufficient, with a maximum number of rounds as a backstop and any remaining gaps stated in the report.
 
 ### Root-causing narrow output
 
@@ -435,6 +445,7 @@ final report: thorough US analysis; EU and China not mentioned`,
 3. web-researcher was asked for EU rules and returned claims without URLs although its prompt requires them.
 4. A one-paragraph "summarize this memo" request goes through four subagents and takes 3 minutes.
 5. The doc-analyst failed on one PDF; the report was written anyway with no note of the gap.
+6. Three web-researcher tasks ("market", "policy", "projects") each fetched and summarized the same EU policy document.
 \`\`\``,
       labels: ['Coordinator decomposition', 'Coordinator aggregation or coverage check', 'Subagent execution', 'Use a single agent instead'],
       items: [
@@ -443,9 +454,10 @@ final report: thorough US analysis; EU and China not mentioned`,
         { id: '3', text: 'Claims returned without required URLs', answer: 'Subagent execution', why: 'The task and its output format were clear, and the subagent did not follow them. Fix the subagent prompt, tools, or output validation.' },
         { id: '4', text: 'Four subagents for a one-paragraph summary', answer: 'Use a single agent instead', why: 'A small, single-source task gains nothing from parallel exploration and pays the coordination overhead in cost and latency.' },
         { id: '5', text: 'Report written despite a failed PDF', answer: 'Coordinator aggregation or coverage check', why: 'The coordinator should notice an uncovered part before synthesis and retry, re-delegate, or state the gap explicitly.' },
+        { id: '6', text: 'Three tasks summarized the same policy document', answer: 'Coordinator decomposition', why: 'The scopes overlapped. The coordinator should partition the work into distinct subtopics or source types and tell each subagent what belongs to the others.' },
       ],
       solution:
-        'Ask two questions for each symptom: was the work ever assigned, and did the assignee follow the assignment? Item 1 was never assigned (decomposition). Item 3 was assigned clearly and not followed (subagent). Items 2 and 5 came back fine or failed visibly, and the coordinator mishandled the merge (aggregation and coverage). Item 4 is an architecture choice: the task is too small to need delegation.',
+        'Ask two questions for each symptom: was the work ever assigned, and did the assignee follow the assignment? Item 1 was never assigned (decomposition). Item 3 was assigned clearly and not followed (subagent). Items 2 and 5 came back fine or failed visibly, and the coordinator mishandled the merge (aggregation and coverage). Item 4 is an architecture choice: the task is too small to need delegation (a coordinator that chose subagents by query complexity would not have fanned out). Item 6 is a partitioning failure in the plan.',
     },
     check: [
       {
@@ -489,12 +501,13 @@ final report: thorough US analysis; EU and China not mentioned`,
       { front: 'Who owns decomposition, aggregation, and the coverage check?', back: 'The coordinator. It alone sees the full request, the plan, and all results.' },
       { front: 'A multi-agent report is too narrow but every subagent succeeded. First place to look?', back: 'The coordinator\'s decomposition: the missing parts were probably never assigned.' },
       { front: 'When does a single agent beat a multi-agent system?', back: 'Small or tightly coupled tasks where each step needs full shared context, or when cost and latency outweigh breadth.' },
+      { front: 'What is the iterative refinement loop in a research coordinator?', back: 'Evaluate the synthesized draft for gaps, re-delegate targeted queries to search or analysis subagents, re-invoke synthesis, and stop when coverage is sufficient or a round limit is hit, stating any remaining gaps.' },
     ],
     sources: ['guide-d1', 'eng-multi-agent', 'eng-building-agents', 'sdk-subagents', 'sdk-overview'],
     notes: [
       {
-        date: '2026-11-20',
-        text: 'The example uses the Agent SDK TypeScript `query()` options `allowedTools`, `systemPrompt`, and `agents`. Option names and the subagent tool name (Task, which newer releases may call Agent) can change between SDK versions. Verify against current docs.',
+        date: '2026-11-21',
+        text: 'The exam guide names the Task tool as the subagent-spawning mechanism, and the example follows it. Current SDK releases may call the same tool Agent, and option names such as `allowedTools`, `systemPrompt`, and `agents` can change between versions. Check current docs before copying the configuration.',
       },
     ],
   },
@@ -509,20 +522,22 @@ final report: thorough US analysis; EU and China not mentioned`,
       'Given a coordinator configuration and a delegation call, decide whether the subagent can be spawned and has what it needs, and rewrite the call so context is passed explicitly and independent work runs in parallel.',
     minutes: 25,
     terms: [
-      { term: 'Task tool', definition: 'The Agent SDK tool a coordinator calls to spawn a subagent. Its input names the subagent type and gives it a task prompt. Newer releases may name it Agent.' },
+      { term: 'Task tool', definition: 'The Agent SDK tool a coordinator calls to spawn a subagent. Its input names the subagent type and gives it a task prompt. The coordinator\'s allowedTools must include "Task".' },
       { term: 'AgentDefinition', definition: 'Configuration for a named subagent: description (when to use it), prompt (its system instructions), tools (what it may call), and optionally a model.' },
       { term: 'allowedTools', definition: 'Option listing tools that may run without a permission prompt. The coordinator needs the Task tool here to spawn subagents.' },
       { term: 'Context isolation', definition: 'A subagent starts with a fresh context. It does not see the coordinator\'s conversation, earlier tool results, or other subagents\' work.' },
       { term: 'Explicit context passing', definition: 'Putting everything a subagent needs (findings, identifiers, sources, constraints, output format) directly into its task prompt.' },
       { term: 'fork_session', definition: 'Session option that, when resuming, starts a new branch from an existing session\'s history without changing the original.' },
+      { term: 'Goal-and-criteria prompt', definition: 'A delegation prompt that states what the subagent must achieve and how good the result must be (coverage, source standards, output format) instead of dictating each step.' },
     ],
     learningPoints: [
-      'Configure AgentDefinition entries with a description, prompt, and scoped tools, and include the Task tool in the coordinator\'s allowedTools.',
-      'Explain that a subagent receives only its task prompt and its own system prompt, not the coordinator\'s conversation.',
-      'Write delegation prompts that pass prior findings explicitly with structured metadata (source, date, identifiers) that downstream agents can preserve.',
-      'Spawn independent subagents in parallel by issuing several Task calls in one coordinator response, and serialize only when one task needs another\'s output.',
-      'Write subagent descriptions specific enough that the coordinator picks the right subagent.',
-      'Choose between a fresh, narrowly scoped subagent and a forked session when work should branch from a shared history.',
+      'Explain that subagents are spawned through the Task tool, so "Task" must be in the coordinator\'s allowedTools.',
+      'Configure an AgentDefinition per subagent type: a description the coordinator uses to choose it, a system prompt, and a restricted tool list.',
+      'Explain that a subagent gets only its task prompt and its own system prompt: no parent conversation and no memory shared between invocations.',
+      'Pass complete prior findings (for example search results and document-analysis output for a synthesis subagent) in the prompt, with content separated from metadata such as URL, document name, and page.',
+      'Spawn independent subagents in parallel by emitting several Task calls in one coordinator response, and serialize only when one task needs another\'s output.',
+      'Write coordinator prompts that state goals and quality criteria rather than step-by-step procedures, so subagents can adapt.',
+      'Use a forked session, rather than a fresh subagent, when divergent approaches must start from the same full analysis baseline.',
     ],
     concept: `A coordinator spawns a subagent by calling a tool, usually named **Task**. The call names which subagent to use and gives it a task prompt. The subagent runs with its own context and tools, and its final answer comes back to the coordinator as that tool call's result. From the coordinator's point of view, delegating is just another tool call.
 
@@ -544,7 +559,13 @@ A subagent does **not** inherit the coordinator's conversation. It has not seen 
 - the specific inputs (claims, file names, IDs), with **structured metadata** such as source URL, publisher, date, and page,
 - constraints and the exact output format.
 
-Structured metadata matters because the coordinator must merge results later. If a subagent receives claims stripped of their sources, it cannot return sourced conclusions.
+Pass the findings themselves, **complete**: a synthesis subagent should receive the actual web search results and the document analyst's output, not "the results from earlier". Structure them so **content is separate from metadata**: each entry has the claim or excerpt in one field and its source URL, document name, page number, and date in others. That separation lets downstream agents quote, merge, and re-cite without losing attribution. If a subagent receives claims stripped of their sources, it cannot return sourced conclusions.
+
+Isolation also holds **between invocations**: calling the same subagent type twice does not give the second call any memory of the first. If the second call needs the first call's output, the coordinator passes it in.
+
+### Goals and quality criteria, not procedures
+
+Tell a subagent *what* to achieve and *how good* the result must be: the objective, the scope, what counts as sufficient evidence (for example "two independent sources, at least one primary"), and the output format. Avoid scripting its steps ("run these three queries, open the top five results, summarize each in 100 words"). A step list fails as soon as reality differs from the plan, such as paywalled results or an empty query; a goal with criteria lets the subagent change queries or sources and still meet the bar.
 
 ### Parallel spawning
 
@@ -552,7 +573,7 @@ When sub-tasks are independent, the coordinator should emit several Task calls *
 
 ### Scoped and forked context
 
-Fresh context is a feature: each subagent sees only what is relevant, which keeps it focused and stops one subagent's noise from leaking into another. When you instead want a branch that keeps the **whole** history (for example, trying two different fixes from the same investigation), sessions can be resumed with \`fork_session\`, which creates a new branch and leaves the original session unchanged. Choose a fresh subagent for a curated slice of context, and a fork for the full history.`,
+Fresh context is a feature: each subagent sees only what is relevant, which keeps it focused and stops one subagent's noise from leaking into another. When you instead want a branch that keeps the **whole** history, use fork-based session management: resume the analysis session with \`fork_session\`, which creates a new branch from that shared baseline and leaves the original session unchanged. This suits exploring divergent approaches, such as two different fixes, when the baseline analysis is too large or nuanced to summarize into a task prompt. Choose a fresh subagent for a curated slice of context, and a fork for the full history (lesson 1.7 covers sessions in depth).`,
     example: {
       intro:
         'A Python coordinator using the Claude Agent SDK, followed by one coordinator response that spawns two subagents in parallel with all the context they need written into each task prompt.',
@@ -705,12 +726,13 @@ async for message in query(prompt=analyst_question, options=options):
       { front: 'Two requirements for a coordinator to spawn a subagent in the Agent SDK?', back: 'The subagent is defined (AgentDefinition: description, prompt, tools) and the coordinator\'s allowedTools includes the Task tool.' },
       { front: 'What does a subagent know about the coordinator\'s conversation?', back: 'Nothing. Pass findings, IDs, sources, scope, and output format explicitly in the task prompt.' },
       { front: 'How do you run independent subagents in parallel?', back: 'Emit multiple Task calls in the same coordinator response. Serialize only when a task needs another\'s output.' },
+      { front: 'Step-by-step instructions or goals and criteria in a delegation prompt?', back: 'Goals and quality criteria (objective, scope, evidence standard, output format). Procedural scripts break when results differ from the plan; goals let the subagent adapt.' },
     ],
     sources: ['guide-d1', 'sdk-subagents', 'sdk-permissions', 'sdk-sessions', 'eng-multi-agent'],
     notes: [
       {
-        date: '2026-11-20',
-        text: 'The subagent tool is called Task in many SDK and Claude Code releases; newer releases may name it Agent, which changes what you list in allowedTools. The Task input fields shown (`subagent_type`, `description`, `prompt`), whether an omitted `tools` list inherits all tools, and whether subagents may spawn their own subagents can also vary by version. Verify against current docs.',
+        date: '2026-11-21',
+        text: 'The exam guide (v1.1) names the Task tool and requires "Task" in the coordinator\'s allowedTools; this lesson follows that. Current SDK and Claude Code releases may name the tool Agent, which changes what you list in allowedTools. The Task input fields shown (`subagent_type`, `description`, `prompt`), whether an omitted `tools` list inherits all tools, and whether subagents may spawn their own subagents can also vary by version. Verify against current docs.',
       },
     ],
   },
