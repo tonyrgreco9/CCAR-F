@@ -1,0 +1,17 @@
+{
+  "name": "ccarf-prep",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent exam preparation for Claude Certified Architect – Foundations (CCAR-F). Not affiliated with or endorsed by Anthropic.",
+  "type": "module",
+  "scripts": {
+    "dev": "bun scripts/serve.ts --dev",
+    "build": "bun scripts/build.ts",
+    "preview": "bun scripts/serve.ts",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "bun test tests/",
+    "validate": "bun scripts/validate-content.ts",
+    "e2e": "node e2e/walkthrough.mjs",
+    "check": "bun run typecheck && bun run validate && bun run test && bun run build"
+  }
+}
