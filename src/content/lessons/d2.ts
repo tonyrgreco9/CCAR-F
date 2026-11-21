@@ -620,57 +620,61 @@ A multi-step version works the same way. To make sure metadata is extracted befo
     id: '2.4',
     title: 'Integrating MCP servers into Claude Code and agents',
     outcome:
-      'Given a team\'s MCP needs, choose project, user, or local scope for each server, write a shareable .mcp.json that keeps credentials out of the repo, and make the agent prefer the MCP tools over ad hoc Bash.',
+      'Given a team\'s MCP needs, put shared servers in a project .mcp.json and personal ones in ~/.claude.json, keep credentials out of the repo with ${VAR} expansion, expose catalogs as resources, and make the agent prefer capable MCP tools over built-in Grep or ad hoc Bash.',
     minutes: 25,
     terms: [
       { term: 'Project scope', definition: 'MCP servers defined in a `.mcp.json` file at the repository root, committed to version control and shared with everyone who works in the repo.' },
-      { term: 'User scope', definition: 'MCP servers stored in the user\'s Claude Code configuration (e.g. `~/.claude.json`) and available in all of that user\'s projects; not shared.' },
-      { term: 'Local scope', definition: 'MCP servers stored in the user\'s configuration but tied to one project; private to that user in that project. Typically the default for `claude mcp add`.' },
+      { term: 'User scope', definition: 'MCP servers stored in the user\'s own Claude Code configuration, `~/.claude.json`, and available in all of that user\'s projects; never committed or shared. The place for personal and experimental servers.' },
+      { term: 'Local scope', definition: 'A Claude Code variant of personal configuration: also stored in `~/.claude.json`, but tied to one project path. Private to that user in that project.' },
       { term: 'Environment variable expansion', definition: '`${VAR}` placeholders in `.mcp.json` that Claude Code fills from each user\'s environment, so the shared file holds no secrets.' },
       { term: 'MCP resource', definition: 'Read-only content an MCP server exposes by URI (documents, schemas, catalogs) that a client can list and read without calling a tool.' },
     ],
     learningPoints: [
-      'Choose project, user, or local scope based on who should get the server and whether it should be versioned.',
-      'Keep credentials out of shared configuration with ${ENV_VAR} expansion.',
-      'Add servers with claude mcp add and the right --scope, and check what is loaded.',
-      'Explain that tools from all configured servers are available together, and what that implies for naming and descriptions.',
-      'Use MCP resources for catalogs and reference content the agent should browse rather than query.',
-      'Decide between an existing community server and a custom one, and improve descriptions so the agent prefers MCP tools over Bash workarounds.',
+      'Configure shared team servers in a project-level .mcp.json and personal or experimental servers in user-level ~/.claude.json.',
+      'Keep credentials out of shared configuration with environment variable expansion such as ${GITHUB_TOKEN}.',
+      'Explain that tools from all configured MCP servers are discovered at connection time and available to the agent at the same time, and what that implies for naming and descriptions.',
+      'Expose content catalogs (issue summaries, documentation hierarchies, database schemas) as MCP resources so the agent sees what exists without exploratory tool calls.',
+      'Write MCP tool descriptions that explain capabilities and outputs in enough detail that the agent does not fall back to built-in tools like Grep or Bash.',
+      'Choose an existing community MCP server for standard integrations (e.g. Jira) and reserve custom servers for team-specific workflows.',
     ],
     concept: `MCP lets Claude Code and Agent SDK agents use tools and data from external systems such as an issue tracker, a wiki, or a database. The two practical questions are **where a server is configured** and **how the agent will use it**.
 
-Claude Code keeps MCP configuration at three scopes:
+Claude Code reads MCP configuration from two places that matter for teams:
 
-- **Project** — a \`.mcp.json\` file in the repo root, committed. Everyone who clones the repo gets the same servers. Use it for team tools.
-- **User** — in your personal config, available in all your projects. Use it for personal tools you want everywhere.
-- **Local** — personal and limited to one project. Use it for experiments or servers only you need in this repo.
+- **Project level** — a \`.mcp.json\` file in the repo root, committed. Everyone who clones the repo gets the same servers. Use it for shared team tooling.
+- **User level** — your own \`~/.claude.json\`, available in all your projects and never committed. Use it for personal tools and experimental servers you are still trying out. (Claude Code also has a *local* variant, stored in the same file but tied to one project.)
 
-You can edit \`.mcp.json\` by hand or run \`claude mcp add <name> --scope project|user|local ...\`.
+You can edit \`.mcp.json\` by hand or run \`claude mcp add <name> --scope project|user ...\`.
 
-Shared config must not contain secrets. \`.mcp.json\` supports **environment variable expansion**: write \`\${TRACKER_TOKEN}\` and each engineer supplies the value in their own environment (or a local, gitignored env file). The repo holds the shape; people hold the credentials.
+Shared config must not contain secrets. \`.mcp.json\` supports **environment variable expansion**: write \`\${GITHUB_TOKEN}\` or \`\${TRACKER_TOKEN}\` and each engineer (or the CI job) supplies the value from their own environment. The repo holds the shape; people hold the credentials.
 
-Once connected, **tools from all configured servers are available at the same time**, alongside built-in tools. In Claude Code they appear with server-prefixed names like \`mcp__tracker__search_issues\`. That is convenient, but it means descriptions from different servers compete: if two servers both offer a vague "search", the agent can misroute.
+When a session starts, the client connects to every configured server and **discovers their tools at connection time**. Tools from all servers, project and user level alike, are then **available simultaneously**, alongside built-in tools; there is no switching between servers. In Claude Code they appear with server-prefixed names like \`mcp__tracker__search_issues\`. That means descriptions from different servers compete: if two servers both offer a vague "search", the agent can misroute.
 
-Not everything should be a tool. **MCP resources** expose content by URI, such as a list of wiki spaces, a schema catalog, or a table list. Exposing a catalog as a resource lets the agent see what exists without many exploratory tool calls.
+Not everything should be a tool. **MCP resources** expose content by URI for reading: a list of issue summaries, a documentation hierarchy, a database schema. Exposing such a **content catalog** as a resource gives the agent visibility into what exists without a series of exploratory tool calls ("list tables", "search docs for X", "search again").
 
-For the server itself, prefer a maintained **community or vendor server** for standard systems (GitHub, a common database) and build a **custom server** when you need company-specific workflows, policy checks, or trimmed outputs.
+For the server itself, prefer an existing **community or vendor server** for standard integrations (Jira, GitHub, a common database): less code, maintained upstream. Reserve a **custom server** for team-specific workflows, policy checks, or trimmed outputs that no generic server offers.
 
-Finally, agents in Claude Code also have Bash. If the MCP tool's description is thin, the agent may fall back to \`curl\` or \`psql\` instead. Writing descriptions that say what the tool does better (auth handled, results already filtered, read-only replica) steers it to the MCP tool.
+Finally, agents in Claude Code also have built-in tools. If an MCP tool's description is thin, the agent prefers what it knows: it will Grep the local checkout instead of calling a code-search MCP tool that indexes every repository, or \`curl\` an API instead of the MCP wrapper. Descriptions that **explain capabilities and outputs in detail** (what it covers that Grep cannot, what each result contains, auth already handled) steer it to the more capable MCP tool.
 
 ### Terminology
 
 - **.mcp.json**: project-scope server config, committed.
-- **Scope**: project, user, or local.
+- **~/.claude.json**: user-level config for personal/experimental servers.
 - **Expansion**: \`\${VAR}\` filled from the environment at load time.
-- **Resource**: URI-addressed content a server exposes for reading.`,
+- **Resource**: URI-addressed content a server exposes for reading, such as a catalog.`,
     example: {
-      intro: 'A platform team shares an issue-tracker server and a wiki server through the repo; one engineer adds a personal notes server only for themselves. All values in angle brackets are placeholders.',
+      intro: 'A platform team shares GitHub, issue-tracker, and wiki servers through the repo; one engineer adds a personal notes server only for themselves. All values in angle brackets are placeholders, and no file holds a credential.',
       artifacts: [
         {
           lang: 'json',
           caption: '.mcp.json (committed at the repo root)',
           code: `{
   "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "<community-github-mcp-package>"],
+      "env": { "GITHUB_TOKEN": "\${GITHUB_TOKEN}" }
+    },
     "tracker": {
       "command": "npx",
       "args": ["-y", "<tracker-mcp-package>"],
@@ -702,26 +706,43 @@ claude mcp list
         },
         {
           lang: 'text',
-          caption: 'Tool description that steers the agent away from Bash',
+          caption: 'Tool descriptions that steer the agent away from Bash and Grep',
           code: `mcp__opsdb__query_replica
 "Run a read-only SQL query against the operations database READ REPLICA.
 Credentials and connection are handled by the server; do not use psql or Bash
 for this database. Results are capped at 500 rows and include column types.
-Use describe_table first if you do not know the schema. Writes are rejected."`,
+Read the schema://opsdb/tables resource first if you do not know the schema. Writes are rejected."
+
+mcp__codesearch__find_symbol_usages
+"Find every usage of a function, class, or constant across ALL 140 company
+repositories (not just this checkout), using a semantic index that resolves
+imports, re-exports, and aliases. Returns repo, file, line, and usage kind
+(call, import, re-export). Prefer this over Grep for 'who calls X' questions;
+use Grep for free-text strings such as log messages in the current repo."`,
+        },
+        {
+          lang: 'text',
+          caption: 'Resources the wiki and ops servers expose (read without a tool call)',
+          code: `wiki://spaces                      -> list of spaces with owners and descriptions
+wiki://spaces/platform/tree        -> page hierarchy of the platform space
+schema://opsdb/tables              -> tables, columns, and types of the replica
+tracker://projects/HARBOR/open     -> one-line summaries of open issues`,
         },
       ],
       walkthrough: `The **.mcp.json** file is safe to commit: the token values are \`\${TRACKER_TOKEN}\` and \`\${WIKI_TOKEN}\`, expanded from each engineer's environment. The wiki URL uses a default (\`\${VAR:-default}\`) so most people need not set it. A new engineer clones the repo, sets two environment variables, approves the project servers when prompted, and has the same tools as everyone else.
 
-The **personal notes server** is added with \`--scope user\`, so it never touches the repo and follows the engineer across projects. The ops database server is added with \`--scope project\`, which writes it into \`.mcp.json\` for the team.
+The GitHub entry uses an existing community server, because GitHub access is a standard integration; the team only writes custom servers for its own workflows. Its token is \`\${GITHUB_TOKEN}\`, expanded from each engineer's environment like the others.
 
-Once loaded, the agent sees \`mcp__tracker__*\`, \`mcp__wiki__*\`, and \`mcp__opsdb__*\` tools at once, alongside Read, Grep, and Bash. Without guidance, an agent asked "how many shipments failed yesterday?" might try \`psql\` in Bash, which fails without credentials or bypasses the read-only replica. The rewritten description of \`query_replica\` states that the server handles credentials, that it targets the replica, its limits, and "do not use psql or Bash," which gives the model a clear reason to prefer it.`,
+The **personal notes server** is added with \`--scope user\`, so it lands in that engineer's \`~/.claude.json\`, never touches the repo, and follows them across projects. The ops database server is added with \`--scope project\`, which writes it into \`.mcp.json\` for the team.
+
+When a session starts, every server is connected and its tools discovered, so the agent sees \`mcp__github__*\`, \`mcp__tracker__*\`, \`mcp__wiki__*\`, \`mcp__opsdb__*\`, and the personal \`mcp__notes__*\` tools at once, alongside Read, Grep, and Bash. Without guidance, an agent asked "how many shipments failed yesterday?" might try \`psql\` in Bash, and one asked "who calls \`computeRate\`?" will Grep the local checkout and miss the other repositories. The rewritten descriptions state what each MCP tool covers that the built-in tool cannot, and what it returns, which gives the model a clear reason to prefer it. The resources let the agent read the list of wiki spaces, the schema, or open issue summaries once instead of discovering them through repeated searches.`,
     },
     compare: {
       question: 'The team needs the agent to work with the issue tracker. Use an existing community server or build a custom one?',
       a: {
         title: 'Existing community or vendor server',
         body: 'Configure a maintained server for the tracker in `.mcp.json`. Setup is fast, it covers standard operations, and someone else maintains it as the tracker API changes.',
-        chooseWhen: 'The need is standard CRUD/search on a widely used system and its tools and outputs are acceptable as-is.',
+        chooseWhen: 'The need is a standard integration (e.g. Jira or GitHub issues and search) and the existing tools and outputs are acceptable as-is.',
       },
       b: {
         title: 'Custom MCP server',
@@ -731,10 +752,10 @@ Once loaded, the agent sees \`mcp__tracker__*\`, \`mcp__wiki__*\`, and \`mcp__op
       decidingDetail: `The deciding detail is **whether the requirement is standard or company-specific**. Standard access to a common system is best served by a maintained existing server: less code, fewer bugs, updates handled upstream. When the agent needs custom semantics (internal conventions, policy checks, trimmed outputs to save context), a custom server, possibly wrapping the same API, is worth the maintenance.`,
     },
     mistake: {
-      mistake: 'Putting a team-wide server in each engineer\'s user or local scope, or committing a .mcp.json with a literal token pasted in.',
+      mistake: 'Putting a team-wide server in each engineer\'s ~/.claude.json, or committing a .mcp.json with a literal token pasted in.',
       whyTempting: 'Running `claude mcp add` with the default scope works immediately on your machine, and pasting the token in makes the file "just work" for whoever clones it.',
       howToRecognize: 'New engineers report missing tools and setup steps live in a wiki page; configs drift between machines; or a committed config file contains a credential value instead of a ${VAR} placeholder.',
-      fix: 'Define shared servers in project-scope .mcp.json, committed, with every credential as a ${VAR} placeholder supplied from each person\'s environment. Keep personal servers in user or local scope. If a real credential was ever committed, rotate it, since removing it from the file does not remove it from history.',
+      fix: 'Define shared servers in project-scope .mcp.json, committed, with every credential as a ${VAR} placeholder (e.g. ${GITHUB_TOKEN}) supplied from each person\'s environment. Keep personal and experimental servers in user-level ~/.claude.json. If a real credential was ever committed, rotate it, since removing it from the file does not remove it from history.',
     },
     exercise: {
       prompt: 'Pick the best configuration or design action for each situation on a team sharing one repository.',
@@ -743,16 +764,18 @@ Team repo: harbor-platform (20 engineers)
 Servers in use: tracker (team), wiki (team), opsdb read-replica (team), personal notes (one engineer)
 Observed: agent runs "curl https://tracker.example.internal/api/..." in Bash instead of using mcp__tracker__search_issues
 Observed: agent calls wiki search 15 times to discover which spaces exist
+Observed: agent answers "who calls computeRate?" with Grep on this checkout, ignoring the cross-repo code-search MCP tool
 \`\`\``,
-      labels: ['Project scope', 'User scope', 'Local scope', 'Expose as resource', 'Rewrite tool description'],
+      labels: ['Project .mcp.json', 'User ~/.claude.json', 'Expose as resource', 'Rewrite tool description'],
       items: [
-        { id: 'e1', text: 'The issue-tracker server every engineer should have with identical config.', answer: 'Project scope', why: 'Team-shared, versioned config belongs in the committed .mcp.json, with the token as a ${VAR} placeholder.' },
-        { id: 'e2', text: 'One engineer\'s personal notes server they want in every project they open.', answer: 'User scope', why: 'Personal and cross-project: user scope keeps it out of the repo and available everywhere for that person.' },
-        { id: 'e3', text: 'An engineer trying an experimental server only in this repo, without affecting teammates.', answer: 'Local scope', why: 'Private to one person and one project; nothing is committed.' },
+        { id: 'e1', text: 'The issue-tracker server every engineer should have with identical config.', answer: 'Project .mcp.json', why: 'Team-shared, versioned config belongs in the committed .mcp.json, with the token as a ${VAR} placeholder.' },
+        { id: 'e2', text: 'One engineer\'s personal notes server they want in every project they open.', answer: 'User ~/.claude.json', why: 'Personal and cross-project: user-level config keeps it out of the repo and available everywhere for that person.' },
+        { id: 'e3', text: 'An engineer trying an experimental server whose interface changes daily, without affecting teammates.', answer: 'User ~/.claude.json', why: 'Experimental servers belong in personal configuration; nothing is committed and teammates are unaffected. (Claude Code\'s local scope, also in ~/.claude.json, narrows it to one project.)' },
         { id: 'e4', text: 'The agent makes many wiki searches just to learn which spaces and page trees exist.', answer: 'Expose as resource', why: 'A catalog of spaces is reference content; exposing it as a resource lets the agent read the list once.' },
         { id: 'e5', text: 'The agent uses curl against the tracker API in Bash instead of the tracker MCP tool.', answer: 'Rewrite tool description', why: 'The MCP tool\'s description should state its advantages (auth handled, filtered results) and that it is the way to access the tracker.' },
+        { id: 'e6', text: 'The agent uses Grep on the local checkout for cross-repository caller questions.', answer: 'Rewrite tool description', why: 'Describe what the code-search tool covers (all repositories, resolved aliases) and what it returns, and when to prefer it over Grep.' },
       ],
-      solution: `Scope follows audience: **team and versioned → project** (.mcp.json, secrets as \${VAR}); **personal, all projects → user**; **personal, this project → local**. Catalog-style content the agent needs to browse is a good **resource**. When the agent bypasses an MCP tool through Bash, first fix the **description** so the tool's purpose and advantages are explicit; permissions that block the Bash route are a stronger, complementary control.`,
+      solution: `Scope follows audience: **team and versioned → project .mcp.json** (secrets as \${VAR}); **personal or experimental → user ~/.claude.json**. Catalog-style content the agent needs to browse is a good **resource**. When the agent bypasses an MCP tool through Bash or Grep, first fix the **description** so the tool's capabilities and outputs are explicit; permissions that block the Bash route are a stronger, complementary control.`,
     },
     check: [
       {
@@ -777,7 +800,7 @@ Observed: agent calls wiki search 15 times to discover which spaces exist
           { id: 'd', text: 'Tools from all connected servers together, plus built-in tools' },
         ],
         correct: 'd',
-        why: 'All connected servers contribute tools at once (subject to permissions), which is why clear names and descriptions across servers matter.',
+        why: 'Tools from every configured server are discovered when the client connects and are available together (subject to permissions), which is why clear names and descriptions across servers matter.',
       },
       {
         id: 'c3',
@@ -793,13 +816,14 @@ Observed: agent calls wiki search 15 times to discover which spaces exist
       },
     ],
     review: [
-      { front: 'Project vs. user vs. local MCP scope', back: 'Project: .mcp.json in repo, committed, shared. User: personal, all your projects. Local: personal, this project only.' },
-      { front: 'How do you keep secrets out of .mcp.json?', back: 'Use ${VAR} (optionally ${VAR:-default}) placeholders; each person supplies values from their own environment.' },
-      { front: 'Tool or resource?', back: 'Tools perform actions or queries with inputs. Resources expose readable content by URI, good for catalogs and reference material the agent should browse.' },
+      { front: 'Project vs. user MCP configuration', back: 'Project: .mcp.json in the repo, committed, shared team tooling. User: ~/.claude.json, personal or experimental servers, all your projects, never shared.' },
+      { front: 'How do you keep secrets out of .mcp.json?', back: 'Use ${VAR} placeholders such as ${GITHUB_TOKEN}; each person or CI job supplies values from its own environment.' },
+      { front: 'Tool or resource?', back: 'Tools perform actions or queries with inputs. Resources expose readable content by URI, good for catalogs (issue summaries, doc hierarchies, schemas) that save exploratory tool calls.' },
+      { front: 'Community server or custom server?', back: 'Community/existing server for standard integrations such as Jira; custom server only for team-specific workflows.' },
     ],
     sources: ['guide-d2', 'cc-mcp', 'mcp-intro', 'sdk-mcp'],
     notes: [
-      { date: '2026-11-20', text: 'Claude Code MCP scope names have changed in the past (earlier releases used different names for what are now local and user scope), and the default scope for `claude mcp add` and the storage file may differ by version. Verify against the current Claude Code MCP docs and `claude mcp add --help`.' },
+      { date: '2026-11-21', text: 'The exam guide v1.1 confirms the model taught here: project-level .mcp.json for shared tooling, user-level ~/.claude.json for personal/experimental servers, ${VAR} expansion for credentials, simultaneous tools from all servers, and resources for content catalogs. Current Claude Code also has a local scope (stored in ~/.claude.json per project) and its scope names and the default scope for `claude mcp add` have changed between releases; check `claude mcp add --help` for product work.' },
       { date: '2026-11-20', text: 'Details such as the `${VAR:-default}` syntax, the `--transport` flag and `type: "http"` key, the approval prompt for project-scoped servers, and how resources are referenced in a session (e.g. @-mentions) are version-sensitive. Verify against current docs.' },
     ],
   },

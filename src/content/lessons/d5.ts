@@ -20,7 +20,8 @@ export const lessons: Lesson[] = [
       { term: 'Case facts block', definition: 'A structured, persistent record (often JSON or a fixed key/value list) of the exact facts a task depends on, kept outside the summarized history and re-injected verbatim on every turn.' },
       { term: 'Lost in the middle', definition: 'The tendency of models to use information near the start and end of a long context more reliably than information buried in the middle.' },
       { term: 'Tool-output trimming', definition: 'Reducing a verbose tool result to the fields relevant to the task before it enters context, for example with a post-processing hook or a wrapper.' },
-      { term: 'Structured subagent return', definition: 'A subagent result that carries metadata (IDs, sources, dates, status, coverage) in named fields rather than as free prose, so the coordinator can preserve it exactly.' },
+      { term: 'Structured subagent return', definition: 'A subagent result that carries key facts, citations, relevance scores, and metadata (dates, source locations, methodology) in named fields rather than as free prose or reasoning chains, so the coordinator can preserve it exactly.' },
+      { term: 'Complete conversation history', definition: 'Every prior user turn, assistant turn, tool call, and tool result, sent again with each Messages API request because the API keeps no conversation state between calls.' },
     ],
     learningPoints: [
       'Explain how progressive summarization turns exact amounts, percentages, dates, and customer-stated expectations into vague statements, and why the model handles the start and end of long inputs more reliably than the middle.',
@@ -124,7 +125,7 @@ All of this sits on top of the full message history: every request still sends t
       mistake: `Asking the summarizer to "keep all important numbers and IDs" and assuming that solves the problem, with no separate structured record of the facts.`,
       whyTempting: `It is a one-line prompt change, the first few summaries look fine, and it seems wasteful to maintain a second data structure for information that is already "in the conversation".`,
       howToRecognize: `Late in long sessions the agent quotes approximate amounts ("about $140"), confuses two similar order IDs, re-asks for information the customer already gave, or acts on a date that does not match any tool result. Errors grow with conversation length and number of compression passes.`,
-      fix: `Have the harness maintain a structured case-facts block (IDs, amounts, dates, verification status, commitments) that is never summarized and is placed at the top of each request. Trim tool outputs to the relevant fields, and require subagents to return structured fields rather than prose.`,
+      fix: `Have the harness maintain a structured case-facts block (order numbers, amounts, dates, statuses, verification, commitments, stated expectations), with one record per issue in multi-issue sessions, that is never summarized and is placed at the top of each request alongside the full message history. Trim tool outputs to the relevant fields, and require subagents to return structured fields rather than prose.`,
     },
     exercise: {
       prompt: `A support conversation is about to be compressed. For each piece of information, decide how the harness should handle it.`,
@@ -148,7 +149,7 @@ All of this sits on top of the full message history: every request still sends t
         { id: 'i5', text: 'Three pages of invoice line items where two lines are disputed', answer: 'Trim to relevant fields', why: 'Keep the two disputed lines (and totals if needed) and drop the rest before it enters context.' },
         { id: 'i6', text: 'Customer\'s detailed account of frustration with earlier calls', answer: 'Safe to summarize', why: 'Tone and history matter for how the agent responds, and a one-line summary ("frustrated by repeated contacts") preserves that.' },
       ],
-      solution: `Pin anything an action or a promise depends on: identifiers, amounts, dates, verification status, and commitments. Trim large tool results at the boundary so only task-relevant fields enter context. Summarize narrative and tone freely. The test for each item is: *if this were rounded or dropped, could the agent take a wrong action?* If yes, it goes in the structured block.`,
+      solution: `Pin anything an action or a promise depends on: identifiers, amounts, dates, verification status, commitments, and what the customer said they expect. Trim large tool results at the boundary so only task-relevant fields enter context. Summarize narrative and tone freely. The test for each item is: *if this were rounded or dropped, could the agent take a wrong action?* If yes, it goes in the structured block.`,
     },
     check: [
       {
@@ -195,7 +196,7 @@ All of this sits on top of the full message history: every request still sends t
     ],
     sources: ['guide-d5', 'eng-context', 'api-context-windows', 'sdk-hooks', 'app-authored'],
     notes: [
-      { date: NOTE_DATE, text: 'Context window sizes and any built-in automatic compaction behavior differ by model and product version. The design principle here (keep exact facts outside summarized history) does not depend on them, but verify specific limits against current docs.' },
+      { date: NOTE_DATE, text: 'The exam guide confirms the mechanisms taught here (case-facts block, per-issue layer, trimming tool output, key findings first, complete history in each request). Context window sizes and any built-in automatic compaction or context-editing features differ by model and product version; verify specific limits and features against current docs.' },
     ],
   },
 
