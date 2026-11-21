@@ -1,5 +1,6 @@
 import { useState } from '@rt/index';
-import { LESSONS, QUESTIONS, CASES, lessonById, CONTENT_VERSION } from '../content';
+import { LESSONS, QUESTIONS, CASES, lessonById, CONTENT_VERSION, COVERAGE, devLessonById, DEV_LESSONS } from '../content';
+import { GUIDE_TASKS, GUIDE_SAMPLES, GUIDE_EXERCISES, GUIDE_OUT_OF_SCOPE } from '../content/guide';
 import { DOMAINS, OBJECTIVES, EXAM_GUIDE, INDEPENDENCE_NOTICE, SCENARIOS } from '../content/blueprint';
 import { SOURCES } from '../content/sources';
 import { DEV_MODULES, DEV_PATH, REFRESHERS, DIAGNOSTIC } from '../content/devpath';
@@ -120,48 +121,59 @@ export function PlanPage() {
 
 export function CoveragePage() {
   const [open, setOpen] = useState<string | null>(null);
-  const fams = (id: string) => new Set(QUESTIONS.filter((q) => q.objective === id).map((q) => q.familyId)).size;
-  const unverified = SOURCES.filter((s) => !s.verified);
+  const bullets = GUIDE_TASKS.flatMap((t) => t.bullets);
+  const mapped = bullets.filter((b) => COVERAGE[b.id]);
+  const assessed = bullets.filter((b) => COVERAGE[b.id]?.questions.length);
+  const gaps = bullets.filter((b) => COVERAGE[b.id]?.gap);
+  const devObjs = DEV_MODULES.flatMap((m) => m.objectives);
+  const devDone = devObjs.filter((o) => (o.companion ? !!devLessonById(o.companion) : true));
+  const unverified = SOURCES.filter((s) => !s.verified && s.kind !== 'exam-guide' && s.kind !== 'academy');
   return (
     <div class="page">
       <h2>Source coverage</h2>
-      <section class="card warn-card">
-        <h3>What could not be verified</h3>
+      <div class="stats">
+        <div class="stat"><span class="big">{mapped.length} / {bullets.length}</span><span>guide bullets mapped to lesson sections</span></div>
+        <div class="stat"><span class="big">{assessed.length} / {bullets.length}</span><span>bullets assessed by bank questions</span></div>
+        <div class="stat"><span class="big">{gaps.length}</span><span>bullets with a noted partial gap</span></div>
+        <div class="stat"><span class="big">{devDone.length} / {devObjs.length}</span><span>Developer objectives linked to a lesson</span></div>
+      </div>
+
+      <section class="card">
+        <h3>Sources used</h3>
         <ul>
-          <li><strong>CCAR-F exam guide</strong> — not present in <code>docs/</code> (checked {EXAM_GUIDE.checkedOn}). Missing: version, effective date, official passing score, every "Knowledge of" and "Skills in" bullet under the 30 task statements, the guide's preparation exercises, and its sample questions and explanations. Task statements, domain weights, scenario families, and exam format come from the build request.</li>
-          <li><strong>{DEV_PATH.title}</strong> — {DEV_PATH.access}. Missing: every lesson and learning objective in all {DEV_MODULES.length} modules ({DEV_MODULES.map((m) => m.title).join('; ')}).</li>
-          <li><strong>Prerequisite courses</strong> — course pages not reachable: {REFRESHERS.map((r) => r.course).join('; ')}. Refreshers here are original and do not claim to reflect course content.</li>
-          <li><strong>Anthropic documentation</strong> — {unverified.filter((s) => s.kind !== 'exam-guide' && s.kind !== 'academy').length} cited pages could not be opened from the build environment; product details are marked "not verified" and version-sensitive points carry dated notes in lessons.</li>
+          <li><strong>Exam guide:</strong> <a href={EXAM_GUIDE.url} target="_blank" rel="noopener noreferrer">{EXAM_GUIDE.title}</a>, version {EXAM_GUIDE.version}, effective {EXAM_GUIDE.effectiveDate}. Read in full on {EXAM_GUIDE.checkedOn}: blueprint, 6 scenarios, 30 task statements with {bullets.length} Knowledge/Skills bullets, 4 preparation exercises, 12 sample questions, scope appendix.</li>
+          <li><strong>{DEV_PATH.title}:</strong> public course landing pages (descriptions, objectives, durations) via web search, {DEV_PATH.checkedOn}. Lessons require a partner login and were not used.</li>
+          <li><strong>Anthropic documentation:</strong> {unverified.length} cited pages could not be opened from the build environment (network policy). Lessons flag version-sensitive details with dated notes.</li>
         </ul>
-        <p class="small">Coverage below is therefore measured against task statements and app-authored sub-objectives, not against the guide's bullets. It is not a claim of complete coverage.</p>
       </section>
 
       <section class="card">
-        <h3>Task statements → lesson, example/exercise, assessment</h3>
+        <h3>Guide bullets → lesson section → assessment</h3>
+        <p class="small muted">Click a task statement to see each bullet, where the lesson teaches it (reviewed against the lesson text), and the bank questions that assess it.</p>
         <table class="tbl cov">
-          <thead><tr><th>Task</th><th>Guide bullets</th><th>Lesson</th><th>Example · Exercise</th><th>Check items</th><th>Bank items / families</th><th>Case studies</th></tr></thead>
+          <thead><tr><th>Task</th><th>Lesson</th><th>Bullets mapped</th><th>Assessed</th><th>Bank items / families</th></tr></thead>
           <tbody>
-            {OBJECTIVES.map((o) => {
-              const l = lessonById(o.id);
-              const qn = QUESTIONS.filter((q) => q.objective === o.id).length;
-              const cs = CASES.filter((c) => c.lessons.includes(o.id));
+            {GUIDE_TASKS.map((t) => {
+              const l = lessonById(t.id);
+              const m = t.bullets.filter((b) => COVERAGE[b.id]).length;
+              const as = t.bullets.filter((b) => COVERAGE[b.id]?.questions.length).length;
+              const qs = QUESTIONS.filter((q) => q.objective === t.id);
               return (
                 <>
-                  <tr key={o.id}>
-                    <td><button type="button" class="linklike" aria-expanded={open === o.id ? 'true' : 'false'} onClick={() => setOpen(open === o.id ? null : o.id)}>{o.id}</button></td>
-                    <td><span class="tag warn">Unavailable</span></td>
-                    <td>{l ? <a href={lessonHref(o.id)}>{l.title}</a> : <span class="bad-text">missing</span>}</td>
-                    <td>{l ? `${l.example.artifacts.length} artifact(s) · ${l.exercise.items.length} items` : '—'}</td>
-                    <td>{l?.check.length ?? 0}</td>
-                    <td>{qn} / {fams(o.id)}</td>
-                    <td>{cs.map((c) => c.scenario).join(', ') || '—'}</td>
+                  <tr key={t.id}>
+                    <td><button type="button" class="linklike" aria-expanded={open === t.id ? 'true' : 'false'} onClick={() => setOpen(open === t.id ? null : t.id)}>{t.id}</button></td>
+                    <td>{l ? <a href={lessonHref(t.id)}>{t.title}</a> : t.title}</td>
+                    <td>{m} / {t.bullets.length}</td>
+                    <td>{as} / {t.bullets.length}</td>
+                    <td>{qs.length} / {new Set(qs.map((q) => q.familyId)).size}</td>
                   </tr>
-                  {open === o.id && l ? (
-                    <tr key={o.id + '-d'} class="cov-detail"><td colSpan={7}>
-                      <p><strong>Statement:</strong> {o.statement}</p>
-                      <p><strong>App-authored sub-objectives (verified against lesson content):</strong></p>
-                      <ul>{l.learningPoints.map((p, i) => <li key={i}>{p}</li>)}</ul>
-                      <p class="small">Example: <a href={lessonHref(o.id, 'example')}>worked example</a> · Compare: <a href={lessonHref(o.id, 'compare')}>{l.compare.question}</a> · Exercise: <a href={lessonHref(o.id, 'exercise')}>{l.exercise.labels.join(' / ')}</a> · Assessment: <a href={lessonHref(o.id, 'check')}>{l.check.length} checks</a>, <a href={practiceHref('objective', o.id)}>{qn} bank items</a></p>
+                  {open === t.id ? (
+                    <tr key={t.id + '-d'} class="cov-detail"><td colSpan={5}>
+                      <ul class="bullets">{t.bullets.map((b) => { const c = COVERAGE[b.id]; return (
+                        <li key={b.id}><strong>{b.id}</strong> {b.text}
+                          {c ? <span class="small block">→ {c.sections.map((s2, i) => <span key={s2}>{i ? ', ' : ''}<a href={lessonHref(t.id, s2)}>{s2}</a></span>)}: {c.how} {c.questions.length ? <span class="muted">Assessed by {c.questions.length} item(s).</span> : null}{c.gap ? <span class="warn-text"> Gap: {c.gap}</span> : null}</span>
+                            : <span class="small block warn-text">Not yet mapped.</span>}
+                        </li>); })}</ul>
                     </td></tr>
                   ) : null}
                 </>
@@ -169,6 +181,17 @@ export function CoveragePage() {
             })}
           </tbody>
         </table>
+      </section>
+
+      <section class="card">
+        <h3>Guide sample questions → lessons</h3>
+        <p class="small muted">The guide's 12 sample questions are not reproduced here. Each decision they test is taught in the linked lesson section, and the bank contains original items on the same skills.</p>
+        <ol>{GUIDE_SAMPLES.map((q) => <li key={q.n}>{q.topic} — <a href={lessonHref(q.lesson, q.section)}>Lesson {q.lesson}</a></li>)}</ol>
+      </section>
+
+      <section class="card">
+        <h3>Guide preparation exercises → lessons and case studies</h3>
+        <ol>{GUIDE_EXERCISES.map((x) => <li key={x.n}><strong>{x.title}</strong> — lessons {x.lessons.map((id, i) => <span key={id}>{i ? ', ' : ''}<a href={lessonHref(id)}>{id}</a></span>)}; case studies {x.cases.map((c, i) => <span key={c}>{i ? ', ' : ''}<a href={`#/case/${c}`}>{c}</a></span>)}</li>)}</ol>
       </section>
 
       <section class="card">
@@ -181,8 +204,14 @@ export function CoveragePage() {
       </section>
 
       <section class="card">
-        <h3>Developer Foundations learning objectives</h3>
-        <p>Verified objectives mapped: <strong>0</strong>. All objectives are unavailable (see above). Title-based links are shown on the <a href="#/devpath">companion page</a> and labelled as inferred.</p>
+        <h3>Developer Foundations objectives</h3>
+        <ul>{DEV_MODULES.map((m) => <li key={m.order}><strong>{m.order}. {m.title}</strong>: {m.objectives.length} public objectives — {m.objectives.filter((o) => o.architect?.length).length} taught in Architect lessons, {m.objectives.filter((o) => o.companion).length} in companion lessons. Still unavailable: {m.missing}</li>)}</ul>
+        <p><a href="#/devpath">Open the companion →</a></p>
+      </section>
+
+      <section class="card">
+        <h3>Out of scope for CCAR-F (guide appendix)</h3>
+        <p class="small">{GUIDE_OUT_OF_SCOPE.join(' · ')}</p>
       </section>
 
       <section class="card">
@@ -205,9 +234,10 @@ export function AboutPage() {
         <h3>Exam guide</h3>
         <dl class="terms">
           <div><dt>Guide</dt><dd>{EXAM_GUIDE.title}</dd></div>
-          <div><dt>Version</dt><dd>{EXAM_GUIDE.version ?? 'Not available — guide not supplied'}</dd></div>
-          <div><dt>Effective date</dt><dd>{EXAM_GUIDE.effectiveDate ?? 'Not available — guide not supplied'}</dd></div>
-          <div><dt>Official passing score</dt><dd>{EXAM_GUIDE.passingScore ?? 'Not available — guide not supplied'} (guide information only; never derived from practice scores)</dd></div>
+          <div><dt>Version</dt><dd>{EXAM_GUIDE.version} (<a href={EXAM_GUIDE.url} target="_blank" rel="noopener noreferrer">official PDF</a>)</dd></div>
+          <div><dt>Effective date</dt><dd>{EXAM_GUIDE.effectiveDate}</dd></div>
+          <div><dt>Official passing score</dt><dd>{EXAM_GUIDE.passingScore} (guide information only; practice scores are never converted to it)</dd></div>
+          <div><dt>Fee · validity · delivery</dt><dd>{EXAM_GUIDE.fee} · {EXAM_GUIDE.validity} · {EXAM_GUIDE.delivery}</dd></div>
           <div><dt>Format used</dt><dd>{EXAM_GUIDE.format.questions} questions, {EXAM_GUIDE.format.minutes} minutes, {EXAM_GUIDE.format.scenariosPerForm} of {EXAM_GUIDE.format.scenarioFamilies} scenarios, domain targets {Object.values(EXAM_GUIDE.format.domainTargets).join('/')}, {EXAM_GUIDE.format.itemTypes.toLowerCase()} items.</dd></div>
         </dl>
       </section>
@@ -221,7 +251,7 @@ export function AboutPage() {
       </section>
       <section class="card">
         <h3>Content</h3>
-        <p>Content version {CONTENT_VERSION}: {LESSONS.length} lessons, {CASES.length} case studies, {QUESTIONS.length} original questions in {fams} question families, {DIAGNOSTIC.length} diagnostic items, {REFRESHERS.length} refreshers. <a href="#/coverage">Source coverage →</a></p>
+        <p>Content version {CONTENT_VERSION}: {LESSONS.length} Architect lessons, {DEV_LESSONS.length} Developer companion lessons, {CASES.length} case studies, {QUESTIONS.length} original questions in {fams} question families, {DIAGNOSTIC.length} diagnostic items, {REFRESHERS.length} refreshers. <a href="#/coverage">Source coverage →</a></p>
       </section>
       <section class="card">
         <h3>Your data</h3>

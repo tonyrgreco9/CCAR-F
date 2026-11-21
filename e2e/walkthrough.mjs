@@ -26,7 +26,25 @@ try {
   await page.goto(BASE);
   await page.waitForSelector('text=Continue learning');
   check('dashboard renders with core actions', await page.locator('text=10-question practice').count() > 0 && await page.locator('text=Review mistakes').count() > 0);
-  check('exam guide version/date shown as unavailable in footer', (await page.textContent('footer')).includes('Exam guide version: not available'));
+  check('footer shows exam guide version 1.1 and effective date', (await page.textContent('footer')).includes('version 1.1, effective November 2026'));
+  check('Links is the first navigation item', (await page.textContent('#mainnav a >> nth=0')).trim() === 'Links');
+  await page.click('#mainnav a >> nth=0');
+  await page.waitForSelector('.links-page');
+  check('Links page lists official resources, study guides, practice exams and videos', await (async () => { const t = await page.textContent('.links-page'); return ['Official exam resources', 'Study guides', 'Practice exams', 'YouTube videos'].every((x) => t.includes(x)); })() && (await page.locator('.links-page section.card').count()) === 6 && (await page.locator('.links-page a[target=_blank]').count()) > 30);
+  await page.goto(BASE + '#/lesson/1.1');
+  await page.waitForSelector('.guide-bullets');
+  check('lesson shows official guide bullets with coverage links', (await page.locator('.guide-bullets .bullets li').count()) === 6 && (await page.locator('.guide-bullets .bullets li a').count()) >= 6);
+  await page.goto(BASE + '#/devpath');
+  await page.waitForSelector('.dev-objectives');
+  const devLink = page.locator('.dev-objectives a[href^="#/dev/"]').first();
+  check('Developer path lists public objectives with lesson links', (await page.locator('.dev-objectives li').count()) >= 25 && await devLink.count() === 1);
+  await devLink.click();
+  await page.waitForSelector('#sec-exercise');
+  check('companion lesson opens with full lesson sequence', (await page.locator('.lsec').count()) === 7);
+  await page.goto(BASE + '#/coverage');
+  check('coverage page reports 240 guide bullets', /\/ 240/.test(await page.textContent('.stats')));
+  await page.goto(BASE);
+  await page.waitForSelector('text=Continue learning');
   await shot(page, '01-dashboard');
 
   // complete a lesson

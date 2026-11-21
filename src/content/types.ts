@@ -144,3 +144,23 @@ export interface CaseStudy {
   wrapUp: Md;
   lessons: ObjectiveId[];
 }
+
+/** How one official guide bullet (e.g. '1.1.K2') is taught and assessed. */
+export interface BulletCoverage {
+  /** Lesson sections of the bullet's task-statement lesson that teach it. */
+  sections: LessonSection[];
+  /** One or two sentences: what the lesson actually says/does for this bullet (reviewed against content). */
+  how: string;
+  /** Bank question IDs that assess this bullet (may be empty only if `gap` explains why). */
+  questions: string[];
+  /** Set when coverage is partial; explains what is missing. */
+  gap?: string;
+}
+
+/** Companion lesson for a Developer Foundations objective that no Architect lesson teaches. Same teaching sequence as Lesson. */
+export interface DevLesson extends Omit<Lesson, 'id'> {
+  id: string;        // e.g. 'dev-tokens-context'
+  module: number;    // Developer Foundations course number (1-5)
+  /** True when the topic is listed as out of scope for CCAR-F in the exam guide (still useful for CCDV-F). */
+  outOfScopeForCCARF?: boolean;
+}

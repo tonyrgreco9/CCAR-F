@@ -1,7 +1,7 @@
 // Domain 1 lessons, part A: task statements 1.1–1.4.
-// Original, app-authored teaching content. Learning points are this app's own decomposition of the
-// task statements; the exam guide's Knowledge/Skills bullets were not supplied, so nothing here
-// claims to match them.
+// Original, app-authored teaching content. Learning points are aligned with the Knowledge/Skills
+// bullets of the official exam guide v1.1 (read 2026-11-21) and written in this app's own words.
+// See src/content/coverage/d1.ts for the bullet-by-bullet map.
 import type { Lesson } from '../types';
 
 export const lessons: Lesson[] = [
@@ -23,12 +23,12 @@ export const lessons: Lesson[] = [
       { term: 'Iteration cap', definition: 'A maximum number of loop iterations. A safety backstop against runaway loops, not the normal way a loop finishes.' },
     ],
     learningPoints: [
-      'Explain why stop_reason, not the wording of the assistant\'s text, is the signal that drives an agent loop.',
-      'Implement a loop that executes every tool_use block in a response and returns all tool_result blocks, each with the matching tool_use_id, in one user message.',
-      'Report tool failures as tool_result blocks with is_error: true and a useful message, instead of crashing the loop or silently dropping the result.',
-      'Give end_turn, max_tokens, pause_turn, stop_sequence, and refusal their own deliberate branches.',
-      'Use an iteration cap only as a backstop, and treat frequent cap hits as a symptom to investigate.',
-      'Recognize when a fixed workflow of known steps is a better fit than an open-ended agent loop.',
+      'Describe one full pass of the loop: send the request, read stop_reason, run the requested tools, return their results, and call again.',
+      'Write loop control flow that keeps going while stop_reason is "tool_use" and stops when it is "end_turn", with deliberate handling for the other stop reasons.',
+      'Explain why each assistant turn and its tool results must be appended to the message history: the history is all the model knows when it picks its next action.',
+      'Return every tool result for a turn in one user message, paired by tool_use_id, and report failures with is_error: true instead of crashing or dropping them.',
+      'Avoid the three termination anti-patterns: parsing natural-language "I am done" signals, using an iteration cap as the main stop condition, and treating any assistant text as completion.',
+      'Contrast model-driven tool selection (Claude reasons about the next call from context) with pre-configured decision trees or fixed tool sequences, and say when each fits.',
     ],
     concept: `An agent loop is ordinary code that you write around the model. You send the conversation and your tool definitions to the Messages API. Claude either answers, or asks you to run one or more tools. If it asked for tools, your code runs them, sends the results back, and calls the API again. This repeats until Claude says its turn is over. The model never executes your tools itself: your code does, and your code decides when the loop ends.
 
@@ -45,13 +45,17 @@ Every response carries a \`stop_reason\`. Branch on it, not on what the text say
 
 ### Returning results
 
-Each \`tool_use\` block has an \`id\`, a \`name\`, and an \`input\`. After running the tools, append the assistant message to the history, then append **one** \`user\` message containing a \`tool_result\` block for **every** \`tool_use\` block from that turn, each with \`tool_use_id\` set to the matching \`id\`. Put the tool_result blocks first in that message; any extra text goes after them. Splitting results across several user messages, or omitting one, breaks the pairing the API expects.
+The model has no memory between API calls: each request carries the whole conversation, and that history is the only thing Claude reasons from when it chooses the next action. So results must be **appended**, never summarized away or sent out of band. Each \`tool_use\` block has an \`id\`, a \`name\`, and an \`input\`. After running the tools, append the assistant message to the history, then append **one** \`user\` message containing a \`tool_result\` block for **every** \`tool_use\` block from that turn, each with \`tool_use_id\` set to the matching \`id\`. Put the tool_result blocks first in that message; any extra text goes after them. Splitting results across several user messages, or omitting one, breaks the pairing the API expects.
 
 When a tool fails, still return a tool_result. Set \`is_error: true\` and describe what went wrong and whether a retry could help. Claude can then correct its input, try another tool, or tell the user.
 
 ### Why not parse the text?
 
-Phrases like "I'm done" or "Final answer:" are unreliable. Claude may write them in the same response that requests another tool, or finish without them. \`stop_reason\` is structured and set by the API.
+Phrases like "I'm done" or "Final answer:" are unreliable. Claude may write them in the same response that requests another tool, or finish without them. A related trap is treating *any* text block as the end: Claude often narrates ("Let me check the invoice") in the same response as a \`tool_use\` block, so "the response contains text" says nothing about completion. \`stop_reason\` is structured and set by the API.
+
+### Who decides the next step?
+
+In an agent loop the **model** decides: given the conversation so far and the tool descriptions, Claude reasons about which tool to call next, or whether it is finished. The alternative is a **pre-configured decision tree** or fixed tool sequence written in your code ("if intent is billing, call lookup_invoice, then lookup_transaction"). Trees are predictable but break on requests their author did not anticipate, such as a billing question that turns out to be a roaming problem. Use model-driven selection when the right next step depends on what earlier results revealed; keep fixed sequences for steps that are truly the same every time, and use code gates (lesson 1.4) for rules that must never be skipped.
 
 ### Iteration caps
 
@@ -162,15 +166,15 @@ def run_agent(system: str, tools: list, messages: list):
 5. Each branch is deliberate: \`pause_turn\` resumes, \`max_tokens\` is treated as truncation, \`refusal\` is handled, and \`end_turn\` returns. The \`MAX_ITERATIONS\` check sits outside all of that and only fires if the normal signals never arrive.`,
     },
     compare: {
-      question: 'Should this task run as an open-ended agent loop or as a fixed sequence of calls that your code controls?',
+      question: 'Should Claude choose the next tool from context in an agent loop, or should your code follow a pre-configured decision tree or fixed sequence of calls?',
       a: {
-        title: 'Agent loop driven by stop_reason',
-        body: 'Claude chooses which tools to call and in what order; the loop runs until `end_turn`, with an iteration cap as a backstop. Flexible, but each run can take a different path and cost.',
+        title: 'Model-driven agent loop driven by stop_reason',
+        body: 'Claude reasons about which tool to call next from the conversation and the tool results so far; the loop runs until `end_turn`, with an iteration cap as a backstop. Flexible, but each run can take a different path and cost.',
         chooseWhen: 'The steps depend on what earlier tools return and cannot be listed in advance, such as diagnosing an unfamiliar billing dispute.',
       },
       b: {
-        title: 'Fixed workflow in code',
-        body: 'Your code makes a known series of calls (for example: extract fields, then classify, then draft a reply), possibly forcing a specific tool with `tool_choice` at each step. Predictable cost and easy to test.',
+        title: 'Pre-configured decision tree or fixed workflow in code',
+        body: 'Your code branches on predefined conditions and makes a known series of calls (for example: extract fields, then classify, then draft a reply), possibly forcing a specific tool with `tool_choice` at each step. Predictable cost and easy to test.',
         chooseWhen: 'The same steps happen in the same order every time, such as a nightly job that always extracts and then validates one document.',
       },
       decidingDetail:
@@ -178,7 +182,7 @@ def run_agent(system: str, tools: list, messages: list):
     },
     mistake: {
       mistake:
-        'Ending the loop when the assistant text contains a phrase such as "Final answer" or "DONE", and relying on a small iteration cap (say 5) to end everything else.',
+        'Ending the loop when the assistant text contains a phrase such as "Final answer" or "DONE" (or simply whenever the response contains a text block), and relying on a small iteration cap (say 5) to end everything else.',
       whyTempting:
         'It works in demos: the prompt asks Claude to say "DONE", and short conversations finish within the cap. Text checks also feel intuitive because that is how a human reads the reply.',
       howToRecognize:
@@ -262,8 +266,8 @@ def run_agent(system: str, tools: list, messages: list):
     sources: ['guide-d1', 'api-tool-use', 'api-implement-tool-use', 'api-stop-reasons', 'eng-building-agents'],
     notes: [
       {
-        date: '2026-11-20',
-        text: 'The set of `stop_reason` values has grown over time (`pause_turn` and `refusal` were added after the original tool-use release), and more may be added. Verify the current list against the stop-reasons docs, and give unknown values an explicit fallback branch rather than assuming success.',
+        date: '2026-11-21',
+        text: 'The exam guide frames loop control around `tool_use` (continue) and `end_turn` (stop). The API defines further `stop_reason` values (`max_tokens`, `stop_sequence`, `pause_turn`, `refusal`), and the set has grown over time. Verify the current list against the stop-reasons docs, and give unknown values an explicit fallback branch rather than assuming success.',
       },
     ],
   },

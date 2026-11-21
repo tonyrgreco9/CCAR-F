@@ -18,19 +18,20 @@ export interface SourceRef {
 }
 
 const DOCS = 'https://docs.claude.com/en/docs';
+const GUIDE_URL = 'https://cc.sj-cdn.net/instructor/6nizmqk8tpzpfjvt6qmmav7rh/public/1794946250/Claude_Certified_Architect_-_Foundations_Exam_Guide.pdf';
 const UNVERIFIED = 'Not reachable from the build environment on 2026-11-20 (network policy). Confirm against the live page.';
 
 export const SOURCES: SourceRef[] = [
   // ---- Exam guide (task statements restated in the build request; guide file not supplied) ----
   ...(['1', '2', '3', '4', '5'] as const).map((d) => ({
     id: `guide-d${d}`,
-    title: `CCAR-F Exam Guide — Domain ${d} task statements`,
-    url: null,
+    title: `CCAR-F Exam Guide v1.1 — Domain ${d} objectives (task statements, Knowledge/Skills)`,
+    url: GUIDE_URL,
     kind: 'exam-guide' as const,
-    verified: false,
-    note: 'Task statement wording comes from the build request. The guide document itself (with Knowledge/Skills bullets) was not supplied.',
+    verified: true,
+    note: 'Official exam guide v1.1, effective November 2026. Downloaded and read in full on 2026-11-21.',
   })),
-  { id: 'guide-format', title: 'CCAR-F Exam Guide — exam format and scenario families', url: null, kind: 'exam-guide', verified: false, note: 'Format restated in the build request; guide document not supplied.' },
+  { id: 'guide-format', title: 'CCAR-F Exam Guide v1.1 — exam details, scenarios, scoring', url: GUIDE_URL, kind: 'exam-guide', verified: true, note: 'Official exam guide v1.1, effective November 2026. Read in full on 2026-11-21.' },
 
   // ---- Claude API ----
   { id: 'api-tool-use', title: 'Claude Docs — Tool use overview', url: `${DOCS}/agents-and-tools/tool-use/overview`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
@@ -81,8 +82,27 @@ export const SOURCES: SourceRef[] = [
   { id: 'mcp-intro', title: 'Model Context Protocol — Introduction', url: 'https://modelcontextprotocol.io/introduction', kind: 'mcp-spec', verified: false, note: UNVERIFIED },
 
   // ---- Academy ----
-  { id: 'academy-dev-path', title: 'Anthropic Academy — Claude Certified Developer – Foundations learning path', url: 'https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations/', kind: 'academy', verified: false, note: 'HTTP 403 from the build environment on 2026-11-20; no exports in docs/academy/. Lesson content not available.' },
+  { id: 'academy-dev-path', title: 'Anthropic Academy — Claude Certified Developer – Foundations learning path', url: 'https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations/', kind: 'academy', verified: false, note: 'Public landing pages read via web search on 2026-11-21. Lessons require a Claude Partner Network login and were not used.' },
   { id: 'academy-catalog', title: 'Anthropic Academy — public course catalog', url: 'https://anthropic.skilljar.com/', kind: 'academy', verified: false, note: 'Catalog location; individual course URLs were not verified.' },
+
+  // ---- Developer Foundations companion topics ----
+  { id: 'api-models', title: 'Claude Docs — Models overview and choosing a model', url: `${DOCS}/about-claude/models/overview`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'api-extended-thinking', title: 'Claude Docs — Extended thinking', url: `${DOCS}/build-with-claude/extended-thinking`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'api-streaming', title: 'Claude Docs — Streaming messages', url: `${DOCS}/build-with-claude/streaming`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'api-token-counting', title: 'Claude Docs — Token counting', url: `${DOCS}/build-with-claude/token-counting`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'api-client-sdks', title: 'Claude Docs — Client SDKs', url: 'https://docs.claude.com/en/api/client-sdks', kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'pe-xml-tags', title: 'Claude Docs — Use XML tags to structure prompts', url: `${DOCS}/build-with-claude/prompt-engineering/use-xml-tags`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'pe-system-prompts', title: 'Claude Docs — Giving Claude a role with a system prompt', url: `${DOCS}/build-with-claude/prompt-engineering/system-prompts`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'guard-jailbreaks', title: 'Claude Docs — Mitigate jailbreaks and prompt injections', url: `${DOCS}/test-and-evaluate/strengthen-guardrails/mitigate-jailbreaks`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'mcp-spec-transports', title: 'Model Context Protocol specification — Transports', url: 'https://modelcontextprotocol.io/specification/2025-06-18/basic/transports', kind: 'mcp-spec', verified: false, note: UNVERIFIED },
+  { id: 'mcp-spec-authorization', title: 'Model Context Protocol specification — Authorization', url: 'https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization', kind: 'mcp-spec', verified: false, note: UNVERIFIED },
+  { id: 'mcp-build-server', title: 'Model Context Protocol — Build an MCP server', url: 'https://modelcontextprotocol.io/quickstart/server', kind: 'mcp-spec', verified: false, note: UNVERIFIED },
+  { id: 'cc-plugins', title: 'Claude Code Docs — Plugins', url: `${DOCS}/claude-code/plugins`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'cc-iam', title: 'Claude Code Docs — Identity and access management / permission modes', url: `${DOCS}/claude-code/iam`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'cc-security', title: 'Claude Code Docs — Security', url: `${DOCS}/claude-code/security`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'cloud-bedrock', title: 'Claude Docs — Claude on Amazon Bedrock', url: `${DOCS}/build-with-claude/claude-on-amazon-bedrock`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'cloud-vertex', title: 'Claude Docs — Claude on Google Cloud Vertex AI', url: `${DOCS}/build-with-claude/claude-on-vertex-ai`, kind: 'anthropic-docs', verified: false, note: UNVERIFIED },
+  { id: 'dev-course-pages', title: 'Anthropic Partner Academy — Developer Foundations course landing pages (public descriptions and objectives)', url: 'https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations', kind: 'academy', verified: false, note: 'Read through web search results on 2026-11-21; direct fetch blocked. Lessons are behind the partner login and were not used.' },
 
   // ---- App-authored ----
   { id: 'app-authored', title: 'App-authored teaching example (original; not from an official source)', url: null, kind: 'app', verified: true },

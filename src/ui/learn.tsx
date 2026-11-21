@@ -1,6 +1,7 @@
 import { useEffect, useState } from '@rt/index';
-import type { Lesson, ObjectiveId, ScenarioId } from '../content/types';
-import { LESSONS, CASES, lessonById, caseByScenario, QUESTIONS } from '../content';
+import type { Lesson, ObjectiveId, ScenarioId, DevLesson } from '../content/types';
+import { guideTask } from '../content/guide';
+import { LESSONS, CASES, lessonById, caseByScenario, QUESTIONS, DEV_LESSONS, devLessonById, COVERAGE } from '../content';
 import { DOMAINS, OBJECTIVES, scenarioById, objectiveDomain } from '../content/blueprint';
 import { sourceById } from '../content/sources';
 import { DEV_MODULES, DEV_PATH, REFRESHERS, DIAGNOSTIC } from '../content/devpath';
@@ -68,37 +69,70 @@ export function LearnHome() {
   );
 }
 
-export function LessonPage({ id, section }: { id: string; section?: string | null }) {
-  const l = lessonById(id);
+export function LessonPage({ id, section, dev }: { id: string; section?: string | null; dev?: boolean }) {
+  const l = (dev ? devLessonById(id) : lessonById(id)) as Lesson | undefined;
+  const href = (lid: string, s?: string) => (dev ? `#/dev/${lid}${s ? `?s=${s}` : ''}` : lessonHref(lid, s));
   useEffect(() => {
     if (!section) { window.scrollTo(0, 0); return; }
     const el = document.getElementById(`sec-${section}`);
     if (el) { el.scrollIntoView({ block: 'start' }); (el as HTMLElement).focus({ preventScroll: true }); }
   }, [id, section]);
   if (!l) return <div class="page"><h2>Lesson {id} not found</h2></div>;
-  const obj = OBJECTIVES.find((o) => o.id === l.id)!;
+  const obj = OBJECTIVES.find((o) => o.id === l.id);
+  const dl = dev ? (l as unknown as DevLesson) : null;
+  const mod = dl ? DEV_MODULES.find((m) => m.order === dl.module) : null;
   const prog = store.data.lessons[l.id];
-  const idx = LESSONS.findIndex((x) => x.id === l.id);
-  const prev = LESSONS[idx - 1], next = LESSONS[idx + 1];
+  const list: { id: string }[] = dev ? DEV_LESSONS : LESSONS;
+  const idx = list.findIndex((x) => x.id === l.id);
+  const prev = list[idx - 1], next = list[idx + 1];
   const nQ = QUESTIONS.filter((q) => q.objective === l.id).length;
-  const devModules = DEV_MODULES.filter((m) => m.inferredArchitectLessons.includes(l.id));
-  const cases = CASES.filter((c) => c.lessons.includes(l.id));
+  const devLinks = DEV_MODULES.flatMap((m) => m.objectives.filter((o) => o.architect?.includes(l.id as ObjectiveId)).map((o) => ({ m, o })));
+  const cases = CASES.filter((c) => c.lessons.includes(l.id as ObjectiveId));
+  const gt = guideTask(l.id);
 
   return (
     <article class="page lesson">
-      <p class="crumb"><a href="#/learn">Learn</a> › Domain {obj.domain} › Task statement {l.id}</p>
-      <h2>{l.id} {l.title}</h2>
-      <p class="statement"><strong>Task statement:</strong> {obj.statement}</p>
+      {dl && mod ? (
+        <>
+          <p class="crumb"><a href="#/devpath">Developer Foundations companion</a> › Course {mod.order}: {mod.title}</p>
+          <h2>{l.title}</h2>
+          <p class="muted small">Original companion lesson for a public course objective. It is not the Partner Academy lesson and does not reproduce it.{dl.outOfScopeForCCARF ? ' This topic is listed as out of scope for the CCAR-F exam; it is included for the Developer path.' : ''}</p>
+        </>
+      ) : (
+        <>
+          <p class="crumb"><a href="#/learn">Learn</a> › Domain {obj?.domain} › Task statement {l.id}</p>
+          <h2>{l.id} {l.title}</h2>
+          <p class="statement"><strong>Task statement {l.id} (exam guide v1.1):</strong> {obj?.statement}</p>
+        </>
+      )}
       <div class="outcome card"><strong>Learning outcome:</strong> {l.outcome} <span class="muted small">· about {l.minutes} min</span></div>
       <nav class="toc" aria-label="Lesson sections">
-        {SECTION_ORDER.map((s) => <a key={s} href={lessonHref(l.id, s)} class={section === s ? 'active' : ''}>{sectionName(s)}</a>)}
+        {SECTION_ORDER.map((s) => <a key={s} href={href(l.id, s)} class={section === s ? 'active' : ''}>{sectionName(s)}</a>)}
       </nav>
 
       <section class="card">
         <h3>What this lesson covers</h3>
         <ul>{l.learningPoints.map((p, i) => <li key={i}><Inline text={p} /></li>)}</ul>
-        <p class="muted small">These sub-objectives are app-authored. The exam guide's "Knowledge of" / "Skills in" bullets were not supplied, so coverage against them is unverified.</p>
+        {mod ? <p class="small">Serves these public objectives of <em>{mod.title}</em>: {mod.objectives.filter((o) => o.companion === l.id).map((o) => o.text).join(' ')}</p> : null}
       </section>
+
+      {gt ? (
+        <details class="card guide-bullets" open={section ? undefined : true}>
+          <summary><strong>Exam guide objectives for {l.id}</strong> <span class="muted small">({gt.bullets.length} Knowledge/Skills bullets, quoted from guide v1.1)</span></summary>
+          <ul class="bullets">
+            {gt.bullets.map((b) => {
+              const c = COVERAGE[b.id];
+              return (
+                <li key={b.id}>
+                  <span class="tag">{b.kind === 'knowledge' ? 'Knowledge' : 'Skill'}</span> {b.text}
+                  {c ? <span class="small block muted">Taught in: {c.sections.map((s, i) => <span key={s}>{i ? ', ' : ''}<a href={href(l.id, s)}>{sectionName(s)}</a></span>)} · {c.questions.length} practice question{c.questions.length === 1 ? '' : 's'}{c.gap ? ` · Gap: ${c.gap}` : ''}</span>
+                    : <span class="small block warn-text">Coverage mapping pending.</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      ) : null}
 
       <section id="sec-concept" tabIndex={-1} class="lsec">
         <h3>1. Concept</h3>
@@ -157,11 +191,14 @@ export function LessonPage({ id, section }: { id: string; section?: string | nul
       <section id="sec-review" tabIndex={-1} class="lsec">
         <h3>7. Review cards</h3>
         <div class="cards">{l.review.map((c, i) => <Flashcard key={i} front={c.front} back={c.back} />)}</div>
+        {!dev ? (<>
         <h4>Targeted practice</h4>
         <p>
           <a class="btn" href={practiceHref('objective', l.id)}>Practice {l.id} ({nQ} questions)</a>{' '}
-          <a class="btn secondary" href={practiceHref('domain', String(objectiveDomain(l.id)))}>Practice Domain {objectiveDomain(l.id)}</a>
-        </p>
+          <a class="btn secondary" href={practiceHref('domain', String(objectiveDomain(l.id as ObjectiveId)))}>Practice Domain {objectiveDomain(l.id as ObjectiveId)}</a>
+        </p></>) : mod ? (
+          <p>Related Architect lessons: {[...new Set(mod.objectives.flatMap((o) => o.architect ?? []))].map((a, i) => <span key={a}>{i ? ', ' : ''}<a href={lessonHref(a)}>{a}</a></span>)}</p>
+        ) : null}
         {cases.length ? <p>Case studies using this skill: {cases.map((c, i) => <span key={c.scenario}>{i ? ', ' : ''}<a href={`#/case/${c.scenario}`}>{c.title}</a></span>)}</p> : null}
       </section>
 
@@ -175,7 +212,7 @@ export function LessonPage({ id, section }: { id: string; section?: string | nul
       <section class="card">
         <h3>Sources</h3>
         <SourceList ids={l.sources} />
-        {devModules.length ? <p class="small">Developer Foundations modules whose <em>titles</em> suggest overlap (inferred, not verified): {devModules.map((m) => `${m.order}. ${m.title}`).join('; ')}. <a href="#/devpath">See companion</a>.</p> : null}
+        {devLinks.length ? <p class="small">Also taught for the Developer Foundations path: {devLinks.map(({ m, o }, i) => <span key={i}>{i ? '; ' : ''}Course {m.order} ({m.title}) — {o.text}</span>)} <a href="#/devpath">See companion</a>.</p> : null}
       </section>
 
       <div class="lesson-foot">
@@ -183,8 +220,8 @@ export function LessonPage({ id, section }: { id: string; section?: string | nul
           ? <p class="tag ok">Lesson completed {new Date(prog.completedAt).toLocaleDateString()}</p>
           : <button class="btn" type="button" onClick={() => store.update((d) => { d.lessons[l.id] = { ...(d.lessons[l.id] ?? { checks: {} }), completedAt: store.now() }; })}>Mark lesson complete</button>}
         <span class="spacer" />
-        {prev ? <a class="btn secondary" href={lessonHref(prev.id)}>← {prev.id}</a> : null}
-        {next ? <a class="btn secondary" href={lessonHref(next.id)}>{next.id} →</a> : null}
+        {prev ? <a class="btn secondary" href={href(prev.id)}>← {dev ? 'Previous' : prev.id}</a> : null}
+        {next ? <a class="btn secondary" href={href(next.id)}>{dev ? 'Next' : next.id} →</a> : null}
       </div>
     </article>
   );
@@ -326,20 +363,34 @@ export function DevPathPage() {
   return (
     <div class="page">
       <h2>Companion: {DEV_PATH.title}</h2>
-      <div class="card warn-card">
-        <p><strong>Source availability.</strong> The learning path at <a href={DEV_PATH.url} target="_blank" rel="noopener noreferrer">{DEV_PATH.url}</a> could not be read ({DEV_PATH.access}, checked {DEV_PATH.checkedOn}). Course lessons and learning objectives are <strong>not available</strong>, so this companion does not reproduce or paraphrase them. Module order is preserved; links to Architect lessons are inferred from module titles only.</p>
+      <div class="card">
+        <p>{DEV_PATH.audience}. Five courses in official order. <a href={DEV_PATH.url} target="_blank" rel="noopener noreferrer">Open the path on the Partner Academy</a>.</p>
+        <p class="small muted"><strong>Source status ({DEV_PATH.checkedOn}):</strong> course descriptions, objectives and durations come from the public course landing pages (read via web search). {DEV_PATH.access}, so lesson content is not reproduced. Each objective links to the Architect lesson that teaches the same skill, or to an original companion lesson.</p>
+        <p class="small"><strong>Exam:</strong> {DEV_PATH.exam}</p>
       </div>
       <section class="card">
-        <h3>Official course order</h3>
+        <h3>Courses in official order</h3>
         <ol class="modules">
           {DEV_MODULES.map((m) => (
             <li key={m.order}>
-              <h4>{m.title} <span class="tag warn">Lessons unavailable</span></h4>
-              <p class="small muted">Missing: {m.missing}</p>
-              {m.inferredArchitectLessons.length
-                ? <p class="small">Related Architect lessons <em>(inferred from title)</em>: {m.inferredArchitectLessons.map((id, i) => <span key={id}>{i ? ', ' : ''}<a href={lessonHref(id)}>{id}</a></span>)}</p>
-                : null}
-              <p class="small muted">{m.inferredRationale}</p>
+              <h4><a href={m.url} target="_blank" rel="noopener noreferrer">{m.title}</a> <span class="muted small">{m.minutes ? `· ${m.minutes} min` : '· duration not published'}</span></h4>
+              <p>{m.description}</p>
+              <ul class="dev-objectives">
+                {m.objectives.map((o, i) => {
+                  const cl = o.companion ? devLessonById(o.companion) : null;
+                  return (
+                    <li key={i}>
+                      {o.text}
+                      <span class="small block">
+                        {o.architect?.length ? <>Architect lesson{o.architect.length > 1 ? 's' : ''}: {o.architect.map((a, j) => <span key={a}>{j ? ', ' : ''}<a href={lessonHref(a)}>{a} {lessonById(a)?.title}</a></span>)}</> : null}
+                        {o.architect?.length && o.companion ? ' · ' : ''}
+                        {o.companion ? (cl ? <>Companion lesson: <a href={`#/dev/${cl.id}`}>{cl.title}</a>{d.lessons[cl.id]?.completedAt ? <span class="tag ok">Done</span> : null}</> : <span class="warn-text">Companion lesson pending</span>) : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p class="small muted">Not available: {m.missing}</p>
             </li>
           ))}
         </ol>

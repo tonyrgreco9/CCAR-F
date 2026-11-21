@@ -1,9 +1,9 @@
 import type { Lesson } from '../types';
 
 // Domain 2 — Tool Design & MCP Integration.
-// Original, app-authored lessons. Learning points are an app-authored decomposition of each
-// task statement; they have not been checked against the exam guide's Knowledge/Skills bullets
-// (the guide was not supplied).
+// Original, app-authored lessons. Learning points are aligned to the Knowledge/Skills bullets of
+// the official exam guide v1.1 (task statements 2.1–2.5); wording is original. Bullet-level coverage
+// is recorded in ../coverage/d2.ts.
 
 export const lessons: Lesson[] = [
   // ---------------------------------------------------------------------------------------------
@@ -22,12 +22,12 @@ export const lessons: Lesson[] = [
       { term: 'Misrouting', definition: 'The model calls a tool that exists and works but is the wrong one for the request, usually because two tools look interchangeable from their names and descriptions.' },
     ],
     learningPoints: [
-      'Explain why the description is the main signal the model uses to choose among tools.',
-      'Write a description that states purpose, inputs, output, an example, edge cases, and boundaries against similar tools.',
-      'Diagnose misrouting caused by overlapping or vague tool definitions.',
-      'Decide when to split a generic tool into purpose-specific tools and when to consolidate near-duplicates behind one tool with an enum parameter.',
+      'Explain why the description is the main signal the model uses to choose among tools, and why one-line descriptions make selection among similar tools unreliable.',
+      'Write a description that states purpose, input formats, output, example queries, edge cases, and boundaries against similar tools.',
+      'Diagnose misrouting caused by ambiguous or overlapping definitions, and fix it by renaming a tool and rewriting its description so the overlap disappears.',
+      'Split a generic do-everything tool into purpose-specific tools, each with a defined input and output contract (and know when consolidating near-duplicates behind an enum is the better move).',
       'Use input schemas (required fields, enums, formats) and clear names to remove ambiguity the description alone cannot.',
-      'Recognize when a system-prompt rule is a patch for a definition problem that should be fixed in the tool itself.',
+      'Review the system prompt for keyword-triggered instructions that create unintended tool associations and override otherwise good tool descriptions.',
     ],
     concept: `When Claude has several tools, it does not see your code. It sees each tool's **name**, **description**, and **input schema**, and it picks the one whose text best matches the request. That makes the description the most important routing signal you control. A one-line description such as "Gets invoice data" forces the model to guess; a description written like documentation for a new teammate lets it choose correctly.
 
@@ -43,14 +43,19 @@ Boundaries matter most when tools overlap. If \`lookup_invoice\` and \`lookup_tr
 
 Structure helps too. Clear, distinct **names** (\`search_orders_by_customer\` rather than \`get_data\`) carry meaning before the description is read. **Input schemas** constrain what the model can send: an \`enum\` for a status filter prevents invented values, required fields prevent half-formed calls, and a described format prevents guesswork.
 
-Sometimes the fix is structural. A **generic tool** like \`billing_action(action, ...)\` that refunds, credits, and looks things up hides very different risks behind one name; **splitting** it into purpose-specific tools makes each choice explicit and lets you permission them separately. The opposite problem also happens: five near-identical tools (\`list_open_tickets\`, \`list_closed_tickets\`, ...) differ only by a filter value, so **consolidating** them into one tool with a \`status\` enum shrinks the choice and removes look-alikes.
+**Names are part of the description.** When two tools overlap in name and wording, for example a web agent's \`analyze_content\` and a document agent's \`analyze_document\` both described as "analyzes text and returns key points", the model cannot tell them apart. Rewriting the descriptions helps, but the cleanest fix is often to **rename** one so its scope is obvious (\`analyze_content\` becomes \`extract_web_results\`, described as working only on fetched web search results) and to state the boundary in both.
+
+Sometimes the fix is structural. A **generic tool** like \`analyze_document(doc, instruction)\` that pulls numbers, writes summaries, and checks claims returns a different shape each time and gives the model no signal about which job it is doing. **Splitting** it into purpose-specific tools, such as \`extract_data_points\` (returns a list of figure, unit, and location), \`summarize_content\` (returns a bounded summary), and \`verify_claim_against_source\` (returns supported, contradicted, or not found plus the quoted passage), gives each one a **defined input and output contract** that callers and downstream code can rely on. The same logic applies to risk: \`billing_action(action, ...)\` that refunds and looks things up should be split so each action can be permissioned separately. The opposite problem also happens: five near-identical tools (\`list_open_tickets\`, \`list_closed_tickets\`, ...) differ only by a filter value, so **consolidating** them into one tool with a \`status\` enum shrinks the choice and removes look-alikes.
+
+**Check the system prompt too.** Tool selection is also shaped by the system prompt, and keyword-triggered instructions can quietly override good descriptions. A line such as "Whenever the customer mentions an order, look the order up first" makes the word *order* a trigger: "my order arrived broken, can I return it?" now goes to \`lookup_order\` instead of \`check_return_eligibility\`, even though the descriptions are clear. When misrouting persists after the descriptions are fixed, search the system prompt for words that tie to a tool name and reword the instruction around the situation, not the keyword.
 
 ### Terminology
 
 - **Tool definition**: name + description + \`input_schema\`, sent with each request.
 - **Selection signal**: the text the model uses to choose a tool; the description carries most of it.
 - **Boundary statement**: "Do not use for X; use Y instead."
-- **Purpose-specific tool**: one action, one risk level, one clear trigger.`,
+- **Purpose-specific tool**: one action, one risk level, one clear trigger, one input/output contract.
+- **Keyword-sensitive instruction**: a system-prompt rule triggered by a word rather than a situation, which can create unintended tool associations.`,
     example: {
       intro: 'A support agent keeps calling `lookup_invoice` when customers ask about a single card charge. The original and rewritten definitions are below.',
       artifacts: [
@@ -121,7 +126,7 @@ The "after" version fixes this at the definition level:
 - Each tool says what an **empty result** means, which matters later for error handling.
 - Each ends with a **boundary**: "Does NOT return X: use Y." That sentence is what breaks the tie for the $49.99 question.
 
-No system-prompt rule was needed; the routing information now travels with the tools wherever they are used.`,
+No system-prompt rule was needed; the routing information now travels with the tools wherever they are used. One more check before shipping: search the system prompt for instructions keyed on words like "charge" or "bill". A line such as "If the customer mentions a bill, pull the invoice" would send "a charge on my bill I don't recognize" back to \`lookup_invoice\` and undo the rewrite.`,
     },
     compare: {
       question: 'A team has one `manage_account(action, params)` tool handling lookups, plan changes, and refunds. Should they split it or keep it?',
@@ -141,7 +146,7 @@ No system-prompt rule was needed; the routing information now travels with the t
       mistake: 'Leaving tool descriptions terse and overlapping, then adding system-prompt rules like "Always use lookup_transaction for card charges" to correct misrouting.',
       whyTempting: 'Editing the system prompt is quick, does not require touching the tool server, and often reduces the specific failure that was reported.',
       howToRecognize: 'The system prompt accumulates routing rules for individual tools; the same tools misroute when reused by another agent; descriptions are one line with no inputs, examples, or "use X instead" statements.',
-      fix: 'Move the routing knowledge into the tool definitions: state purpose, input formats, output and empty-result meaning, edge cases, and explicit boundaries against similar tools. Rename or restructure tools whose names collide, and use enums for constrained values. Keep the system prompt for task policy, not tool disambiguation.',
+      fix: 'Move the routing knowledge into the tool definitions: state purpose, input formats, output and empty-result meaning, example queries, edge cases, and explicit boundaries against similar tools. Rename or split tools whose names or jobs overlap, and use enums for constrained values. Keep the system prompt for task policy, and review it for keyword-triggered instructions that pull requests toward one tool regardless of what the descriptions say.',
     },
     exercise: {
       prompt: 'For each symptom observed in an agent\'s logs, choose the most direct fix at the tool-definition level.',
@@ -154,16 +159,21 @@ list_open_orders / list_shipped_orders / list_cancelled_orders / list_returned_o
 admin_action(action, payload)         "Performs admin actions (lookup, refund, delete_account)."
 set_priority(ticket_id, priority)     priority: string, "Sets ticket priority."
 fetch_doc(id)                         name collides with the MCP wiki server's fetch_doc
-\`\`\``,
-      labels: ['Sharpen description', 'Split the tool', 'Consolidate tools', 'Constrain input schema', 'Rename tool'],
+analyze_text(text, instruction)       "Analyzes text." used to extract figures, summarize, and check claims
+\`\`\`
+
+System prompt excerpt: "If a message mentions a refund, check the customer's transactions first."`,
+      labels: ['Sharpen description', 'Split the tool', 'Consolidate tools', 'Constrain input schema', 'Rename tool', 'Reword system prompt'],
       items: [
         { id: 'e1', text: 'The model calls `search` for customer-profile questions and also for knowledge-base questions, with mixed results.', answer: 'Sharpen description', why: '"Searches for things" gives no purpose or boundary. State what corpus it searches, input format, and "for a customer profile use get_customer".' },
         { id: 'e2', text: 'The model sometimes calls `list_shipped_orders` when the user asked about returns.', answer: 'Consolidate tools', why: 'Four tools differ only by a status filter; one `list_orders` tool with a `status` enum removes the look-alike choice.' },
         { id: 'e3', text: 'A read-only reporting agent was observed calling `admin_action` with `delete_account`.', answer: 'Split the tool', why: 'A read and a destructive write share one tool, so they cannot be permissioned separately. Split into purpose-specific tools and give the reporting agent only the read tool.' },
         { id: 'e4', text: 'Calls to `set_priority` arrive with values like "urgent!!", "P1", and "high".', answer: 'Constrain input schema', why: 'A free-form string invites invented values; an enum such as `low|normal|high|urgent` makes valid values explicit.' },
         { id: 'e5', text: 'Two servers expose `fetch_doc`; the model picks the internal ticket attachment fetcher when asked for a wiki page.', answer: 'Rename tool', why: 'Identical names with different purposes collide; a distinct name like `fetch_ticket_attachment` (plus a boundary sentence) separates them.' },
+        { id: 'e6', text: 'Downstream code cannot parse `analyze_text` output: sometimes a list of numbers, sometimes a paragraph, sometimes "true".', answer: 'Split the tool', why: 'One generic tool does three jobs with three output shapes. Purpose-specific tools (extract figures, summarize, verify a claim) each get a defined input and output contract.' },
+        { id: 'e7', text: '"What is your refund policy for annual plans?" triggers a `lookup_transaction` call, although the policy tool\'s description clearly covers policy questions.', answer: 'Reword system prompt', why: 'The keyword "refund" in the system prompt creates a tool association that overrides the descriptions. Reword the instruction around the situation (a customer asking about a specific charge) rather than the word.' },
       ],
-      solution: `Match the fix to the cause. Vague text calls for a **sharper description** with purpose and boundaries. Near-duplicates that differ only by a filter should be **consolidated** behind an enum. A tool that mixes reads and destructive writes should be **split** so each action is permissioned and described separately. Free-form values the system cannot accept call for an **enum or pattern in the schema**. Name collisions call for a **rename**. In practice you often combine fixes (a rename usually comes with a boundary sentence), but start from the one that removes the specific ambiguity.`,
+      solution: `Match the fix to the cause. Vague text calls for a **sharper description** with purpose and boundaries. Near-duplicates that differ only by a filter should be **consolidated** behind an enum. A tool that mixes reads and destructive writes, or one generic tool that does several jobs with different output shapes, should be **split** so each purpose has its own description and input/output contract. Free-form values the system cannot accept call for an **enum or pattern in the schema**. Name collisions call for a **rename**. When good descriptions still lose to a keyword in the system prompt, **reword the prompt**. In practice you often combine fixes (a rename usually comes with a boundary sentence), but start from the one that removes the specific ambiguity.`,
     },
     check: [
       {
@@ -207,6 +217,7 @@ fetch_doc(id)                         name collides with the MCP wiki server's f
       { front: 'What five things should a tool description cover?', back: 'Purpose/when to use, inputs and formats, output (including what empty means), an example or edge cases, and boundaries: what it does not do and which tool to use instead.' },
       { front: 'Split or consolidate?', back: 'Split when variants are different actions with different risk or inputs. Consolidate behind an enum when variants are the same action differing only by a filter value.' },
       { front: 'Why not fix misrouting with a system-prompt rule?', back: 'It patches one agent while the ambiguous definitions remain; the fix belongs in the tool name, description, and schema, which travel with the tool.' },
+      { front: 'Descriptions are good but one tool still wins whenever a certain word appears. Where do you look?', back: 'The system prompt: a keyword-triggered instruction ("whenever X is mentioned, do Y") can create a tool association that overrides the descriptions. Reword it around the situation.' },
     ],
     sources: ['guide-d2', 'api-tool-use', 'api-implement-tool-use', 'eng-writing-tools'],
   },
@@ -222,31 +233,34 @@ fetch_doc(id)                         name collides with the MCP wiki server's f
     minutes: 25,
     terms: [
       { term: 'isError', definition: 'A boolean on an MCP tool result. When true, the result content describes a failure of the tool call rather than a successful answer, and the client passes it to the model so it can react.' },
-      { term: 'Error category', definition: 'An app-defined classification of the failure, commonly transient, validation, business (policy/rule), or permission, that tells the agent what kind of recovery makes sense.' },
-      { term: 'isRetryable', definition: 'An app-defined flag in the error payload that says whether repeating the same call could succeed (true for a timeout, false for a policy refusal).' },
+      { term: 'errorCategory', definition: 'A field in the error payload classifying the failure (transient, validation, permission, and for policy refusals business) so the agent knows what kind of recovery makes sense.' },
+      { term: 'isRetryable', definition: 'A boolean in the error payload saying whether repeating the same call could succeed (true for a timeout, false for a policy refusal). Business-rule refusals are often marked retriable: false.' },
       { term: 'Valid empty result', definition: 'A successful call that found nothing, such as zero matching orders. It is not an error and should not set isError.' },
     ],
     learningPoints: [
-      'Distinguish an MCP tool execution error (result with isError: true) from a successful call that returned no data.',
-      'Design an error payload with a category, a retryable flag, and a human-readable explanation the model can act on.',
-      'Map each error category to the recovery it supports: retry, correct input, explain a rule, or escalate.',
-      'Decide when a subagent should recover locally and when it should propagate structured failure context to the coordinator.',
-      'Recognize generic or silent failures (empty lists, "Operation failed") as a cause of wrong agent behavior.',
+      'Use the MCP isError flag to report a tool failure back to the agent, and distinguish an access failure from a successful query that returned no matches.',
+      'Classify failures as transient, validation, business (policy), or permission, and map each to the recovery it supports.',
+      'Explain why a uniform "Operation failed" response prevents correct recovery decisions.',
+      'Return structured error metadata: errorCategory, an isRetryable boolean, and a human-readable description, so non-retryable errors do not cause wasted retries.',
+      'For business-rule violations, return retriable: false with a customer-friendly explanation the agent can pass on.',
+      'Recover locally inside a subagent for transient failures, and propagate to the coordinator only unresolved errors, with partial results and what was attempted.',
     ],
     concept: `When a tool fails, the agent can only recover well if it understands **what** went wrong. "Something failed" leaves it guessing: should it try again, change the input, tell the user, or hand off? A good error tells it which.
 
 In MCP, a tool call that ran but failed should return a normal tool result with **\`isError: true\`** and content explaining the failure. The client passes that result to the model (in the Messages API it becomes a \`tool_result\` block with \`is_error: true\`), so the model sees the failure and can reason about it. Problems at the protocol level, such as calling a tool that does not exist, are reported differently, as JSON-RPC errors.
 
-The MCP spec does not define *what* goes inside the error content. A useful convention is a small structured payload:
+The MCP spec does not define *what* goes inside the error content, and a uniform message like "Operation failed" is the worst choice: a timeout, a typo, and a policy refusal all look the same, so the agent retries things that can never succeed and gives up on things that would have worked. The pattern the exam guide names is a small structured payload:
 
-- **errorCategory**: \`transient\` (timeout, rate limit, upstream 503), \`validation\` (bad or missing input), \`business\` (the request breaks a rule, e.g. refund above the cap), or \`permission\` (caller not allowed).
-- **isRetryable**: whether repeating the same call can succeed.
-- **message**: a human-readable explanation the model can relay or act on, ideally with what to do next.
+- **errorCategory**: \`transient\` (timeout, rate limit, service unavailable), \`validation\` (bad or missing input), \`permission\` (caller not allowed), and for policy refusals a **business** category (the request breaks a rule, e.g. a refund above the cap or outside the return window).
+- **isRetryable**: a boolean saying whether repeating the same call can succeed. This is what prevents wasted retry attempts: the agent does not resend a request the server has already said will fail the same way.
+- **message**: a human-readable description the model can reason about, ideally with what to do next.
 - Optional context: the field that was invalid, the limit that applied, a retry-after hint.
+
+**Business-rule violations need one more thing.** The agent usually has to tell a customer about them. Mark them non-retryable (\`retriable: false\` or \`isRetryable: false\`) and include a **customer-friendly explanation** separate from internal detail, e.g. "This order was delivered 41 days ago, and returns are accepted within 30 days." Without it, the agent either retries, or paraphrases an internal code ("policy violation 4471") that means nothing to the customer.
 
 Just as important is what is **not** an error. A search that ran and matched nothing is a **valid empty result**: return success with an empty list and say so. Returning an empty list when the database was unreachable is the dangerous case: the agent concludes "no orders exist" and tells the customer something false. Failure and absence must look different.
 
-Structured errors also decide **where** recovery happens. A subagent can handle transient errors locally (a bounded retry with backoff) and fix validation errors itself (reformat the date and call again). Business and permission errors usually cannot be fixed by retrying; the subagent should stop and **propagate** structured context to its coordinator: what was attempted, the category, any partial results, and possible alternatives. The coordinator, which sees the whole task, decides whether to reroute, ask the user, or escalate.
+Structured errors also decide **where** recovery happens. A subagent should handle transient errors **locally** (a bounded retry with backoff) and fix validation errors itself (reformat the date and call again), so the coordinator is not interrupted for problems that resolve in seconds. Only errors it cannot resolve go up: business and permission errors, or transient errors that persisted after retries. For those the subagent stops and **propagates** structured context to its coordinator: what was attempted, the category, the **partial results** it already has, and possible alternatives. The coordinator, which sees the whole task, decides whether to reroute, ask the user, or escalate, without redoing the work that succeeded.
 
 ### Terminology
 
@@ -272,8 +286,8 @@ Structured errors also decide **where** recovery happens. A subagent can handle 
 { "content": [{ "type": "text", "text": "{\\"errorCategory\\": \\"validation\\", \\"isRetryable\\": false, \\"field\\": \\"from_date\\", \\"message\\": \\"from_date must be YYYY-MM-DD; received '10/01/2026'. Correct the format and call again.\\"}" }],
   "isError": true }
 
-// 4. Business-rule refusal
-{ "content": [{ "type": "text", "text": "{\\"errorCategory\\": \\"business\\", \\"isRetryable\\": false, \\"limit\\": 150, \\"requested\\": 220, \\"message\\": \\"Refunds above $150 require human approval. Do not retry; escalate with the case summary.\\"}" }],
+// 4. Business-rule refusal (non-retryable, with a customer-facing explanation)
+{ "content": [{ "type": "text", "text": "{\\"errorCategory\\": \\"business\\", \\"retriable\\": false, \\"limit\\": 150, \\"requested\\": 220, \\"message\\": \\"Refunds above $150 require human approval. Do not retry; escalate with the case summary.\\", \\"customerMessage\\": \\"Refunds of this size need a quick review by our billing team. I've passed your case on and they'll follow up within one business day.\\"}" }],
   "isError": true }`,
         },
         {
@@ -307,7 +321,7 @@ async function searchOrders(args: { customer_id: string; from_date: string; to_d
 - **Result 1** has \`isError: false\` and an empty list with a note. The agent can truthfully say "I don't see any orders in October."
 - **Result 2** is transient and retryable. The agent (or the client code around it) can wait and try once or twice. If it still fails, it should report that the system is unavailable, not that orders do not exist.
 - **Result 3** names the bad field and the expected format. The agent can fix the input itself and call again: local recovery with no human involved.
-- **Result 4** is a business rule. Retrying cannot help, and the message says so. A subagent should stop and return this context to the coordinator (or the support agent should call its escalation tool).
+- **Result 4** is a business rule marked \`retriable: false\`. Retrying cannot help. The internal \`message\` tells the agent what to do (escalate); the \`customerMessage\` gives it wording it can pass to the customer instead of an error code. A subagent should stop and return this context to the coordinator (or the support agent should call its escalation tool).
 
 The server helper keeps the format consistent: every error has a category, a retryable flag derived from the category, and a message. Note that the empty search path returns success; only the timeout path returns an error. That single distinction prevents the most harmful failure mode: an outage reported as "nothing found."`,
     },
@@ -329,7 +343,7 @@ The server helper keeps the format consistent: every error has a category, a ret
       mistake: 'Catching every exception in the tool and returning an empty list (or a bare "Operation failed") without isError or a category.',
       whyTempting: 'It keeps the agent loop from crashing, looks clean in logs, and an empty list is a valid shape the calling code already handles.',
       howToRecognize: 'The agent tells users "no records found" during outages; retries happen on policy refusals; the model loops calling the same failing tool; error messages carry no field, limit, or next step.',
-      fix: 'Return success with an empty list only when the query actually ran. For failures, set isError: true and include errorCategory, isRetryable, and a specific message (plus field, limit, or retry-after when relevant). Let transient and validation errors be handled locally, and propagate business and permission errors with what was attempted and any partial results.',
+      fix: 'Return success with an empty list only when the query actually ran. For failures, set isError: true and include errorCategory, isRetryable, and a specific human-readable message (plus field, limit, or retry-after when relevant); for business-rule refusals add retriable: false and a customer-friendly explanation. Let transient and validation errors be handled locally, and propagate business and permission errors, or transient ones that outlasted retries, with what was attempted and any partial results.',
     },
     exercise: {
       prompt: 'Label the right handling for each tool outcome a support or research agent receives.',
@@ -391,11 +405,12 @@ o5  isError=true  {"errorCategory":"permission","isRetryable":false,"message":"S
     review: [
       { front: 'Four common error categories and the default response', back: 'Transient: bounded retry. Validation: fix the named input and retry. Business: no retry, explain or escalate. Permission: no retry, propagate to someone with access.' },
       { front: '"No results" vs. "search failed"', back: 'No results is a successful call with empty data (isError false). Search failed is isError true with a category. Conflating them makes agents report outages as facts.' },
-      { front: 'What should a subagent propagate on an unrecoverable error?', back: 'What it attempted, the error category and message, any partial results, and possible alternatives, so the coordinator can reroute, ask, or escalate.' },
+      { front: 'What should a subagent propagate on an unrecoverable error?', back: 'What it attempted, the error category and message, any partial results, and possible alternatives, so the coordinator can reroute, ask, or escalate. Transient errors it retries locally first.' },
+      { front: 'What does a business-rule error need that a timeout does not?', back: 'A non-retryable flag (retriable: false) and a customer-friendly explanation the agent can relay, separate from internal detail.' },
     ],
     sources: ['guide-d2', 'mcp-spec-tools', 'api-implement-tool-use', 'eng-writing-tools'],
     notes: [
-      { date: '2026-11-20', text: 'errorCategory, isRetryable, and the payload layout are an application convention, not fields defined by the MCP specification. The spec defines isError and the content array. Newer spec revisions also describe structured result content and may change guidance on whether invalid-argument errors are protocol errors or tool execution errors; verify against the current MCP specification.' },
+      { date: '2026-11-21', text: 'The exam guide v1.1 names errorCategory (transient/validation/permission), an isRetryable boolean, human-readable descriptions, and retriable: false for business-rule violations; treat these as the exam\'s vocabulary. They live inside the result content: the MCP specification itself defines isError and the content array, not these field names. Newer spec revisions also describe structured result content and may change guidance on whether invalid-argument errors are protocol errors or tool execution errors; check the current MCP specification for product work.' },
     ],
   },
 

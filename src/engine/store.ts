@@ -261,7 +261,7 @@ export function analytics(d: AppData) {
   return {
     firstAttempt: { n: first.length, correct: first.filter((a) => a.correct).length },
     retake: { n: retakes.length, correct: retakes.filter((a) => a.correct).length },
-    lessonsCompleted: Object.values(d.lessons).filter((l) => l.completedAt).length,
+    lessonsCompleted: Object.entries(d.lessons).filter(([id, l]) => /^\d\.\d$/.test(id) && l.completedAt).length,
     byObjective,
   };
 }

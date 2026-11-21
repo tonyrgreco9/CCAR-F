@@ -1,30 +1,32 @@
 import type { DomainId, ObjectiveId, ScenarioId } from './types';
 
 /**
- * Exam guide metadata.
- *
- * The CCAR-F exam guide was NOT present in docs/ when this app was built (2026-11-20).
- * Everything below marked `fromBrief` comes from the build request, which restated the
- * guide's domains, weights, task statements, scenario families, and exam format.
- * Fields the guide alone can supply are null and are shown in the app as "Not available".
- * When the guide is added to docs/, fill these in and re-run `bun run validate`.
+ * Exam guide metadata — from the official Claude Certified Architect – Foundations Exam Guide,
+ * Version 1.1, effective November 2026 (document control: v1.0 July 2026; v1.1 November 2026,
+ * "Registration, identification, and support updates"). Downloaded 2026-11-21 from Anthropic's
+ * Skilljar-hosted public file storage; a local copy is kept at docs/source/ (not committed).
  */
 export const EXAM_GUIDE = {
-  title: 'Claude Certified Architect – Foundations (CCAR-F) Exam Guide',
-  supplied: false,
-  version: null as string | null,
-  effectiveDate: null as string | null,
-  passingScore: null as string | null, // official scaled passing score; guide information only
-  checkedOn: '2026-11-20',
-  location: 'docs/ (expected; not found)',
+  title: 'Claude Certified Architect – Foundations Exam Guide',
+  supplied: true,
+  version: '1.1' as string | null,
+  effectiveDate: 'November 2026' as string | null,
+  passingScore: 'Scaled score of 720 on a scale of 100–1,000' as string | null, // guide information only
+  fee: '$125 USD',
+  validity: '12 months from the date the credential is awarded',
+  delivery: 'Proctored: online proctored and/or test center, per program policy',
+  resultReporting: 'Pass/fail with scaled score (100–1,000), plus percent-correct by domain',
+  url: 'https://cc.sj-cdn.net/instructor/6nizmqk8tpzpfjvt6qmmav7rh/public/1794946250/Claude_Certified_Architect_-_Foundations_Exam_Guide.pdf',
+  checkedOn: '2026-11-21',
+  location: 'docs/source/CCAR-F-Exam-Guide-v1.1.pdf (local copy, not committed)',
   format: {
     questions: 60,
     minutes: 120,
     scenariosPerForm: 4,
     scenarioFamilies: 6,
     domainTargets: { 1: 16, 2: 11, 3: 12, 4: 12, 5: 9 } as Record<DomainId, number>,
-    itemTypes: 'Single-answer and multiple-response',
-    fromBrief: true,
+    itemTypes: 'Multiple-choice and multiple-response; each item states how many responses to select',
+    fromBrief: false,
   },
 };
 
@@ -41,36 +43,36 @@ export const DOMAINS: { id: DomainId; title: string; weight: number }[] = [
 ];
 
 export const OBJECTIVES: { id: ObjectiveId; domain: DomainId; statement: string }[] = [
-  { id: '1.1', domain: 1, statement: 'Implement agent loops, handle stop reasons, execute tools, and return tool results.' },
-  { id: '1.2', domain: 1, statement: 'Design coordinator–subagent systems, delegation, and result aggregation.' },
-  { id: '1.3', domain: 1, statement: 'Configure subagent invocation, spawning, and explicit context passing.' },
-  { id: '1.4', domain: 1, statement: 'Enforce prerequisites and handoffs in multi-step workflows.' },
-  { id: '1.5', domain: 1, statement: 'Use Agent SDK hooks for tool interception and data normalization.' },
-  { id: '1.6', domain: 1, statement: 'Choose a decomposition strategy for complex tasks.' },
-  { id: '1.7', domain: 1, statement: 'Manage session state, resumption, and forking.' },
-  { id: '2.1', domain: 2, statement: 'Design clear tool descriptions, inputs, responsibilities, and boundaries.' },
-  { id: '2.2', domain: 2, statement: 'Return structured MCP errors that support appropriate recovery.' },
-  { id: '2.3', domain: 2, statement: 'Distribute tools across agents and configure tool choice.' },
-  { id: '2.4', domain: 2, statement: 'Integrate MCP servers into Claude Code and agent workflows.' },
-  { id: '2.5', domain: 2, statement: 'Choose and use Read, Write, Edit, Bash, Grep, and Glob effectively.' },
-  { id: '3.1', domain: 3, statement: 'Organize CLAUDE.md instructions by hierarchy, scope, and purpose.' },
-  { id: '3.2', domain: 3, statement: 'Create and configure custom slash commands and skills.' },
-  { id: '3.3', domain: 3, statement: 'Apply path-specific rules for conditional instruction loading.' },
-  { id: '3.4', domain: 3, statement: 'Decide between plan mode and direct execution.' },
-  { id: '3.5', domain: 3, statement: 'Use iterative refinement and concrete feedback.' },
-  { id: '3.6', domain: 3, statement: 'Integrate Claude Code into CI/CD pipelines.' },
-  { id: '4.1', domain: 4, statement: 'Write explicit criteria that improve precision and reduce false positives.' },
-  { id: '4.2', domain: 4, statement: 'Use few-shot examples to improve consistency and handle edge cases.' },
-  { id: '4.3', domain: 4, statement: 'Enforce structured output using tools and JSON schemas.' },
-  { id: '4.4', domain: 4, statement: 'Implement extraction validation, retries, and feedback loops.' },
-  { id: '4.5', domain: 4, statement: 'Design efficient batch processing and recover failed items.' },
-  { id: '4.6', domain: 4, statement: 'Design multi-instance and multi-pass reviews.' },
-  { id: '5.1', domain: 5, statement: 'Preserve critical information across long conversations.' },
-  { id: '5.2', domain: 5, statement: 'Resolve ambiguity and make escalation decisions.' },
-  { id: '5.3', domain: 5, statement: 'Propagate errors across agents while preserving useful partial results.' },
-  { id: '5.4', domain: 5, statement: 'Manage context during large-codebase exploration.' },
-  { id: '5.5', domain: 5, statement: 'Design human review workflows and calibrate confidence against observed accuracy.' },
-  { id: '5.6', domain: 5, statement: 'Preserve provenance, conflicting evidence, and uncertainty in multi-source synthesis.' },
+  { id: '1.1', domain: 1, statement: 'Design and implement agentic loops for autonomous task execution' },
+  { id: '1.2', domain: 1, statement: 'Orchestrate multi-agent systems with coordinator-subagent patterns' },
+  { id: '1.3', domain: 1, statement: 'Configure subagent invocation, context passing, and spawning' },
+  { id: '1.4', domain: 1, statement: 'Implement multi-step workflows with enforcement and handoff patterns' },
+  { id: '1.5', domain: 1, statement: 'Apply Agent SDK hooks for tool call interception and data normalization' },
+  { id: '1.6', domain: 1, statement: 'Design task decomposition strategies for complex workflows' },
+  { id: '1.7', domain: 1, statement: 'Manage session state, resumption, and forking' },
+  { id: '2.1', domain: 2, statement: 'Design effective tool interfaces with clear descriptions and boundaries' },
+  { id: '2.2', domain: 2, statement: 'Implement structured error responses for MCP tools' },
+  { id: '2.3', domain: 2, statement: 'Distribute tools appropriately across agents and configure tool choice' },
+  { id: '2.4', domain: 2, statement: 'Integrate MCP servers into Claude Code and agent workflows' },
+  { id: '2.5', domain: 2, statement: 'Select and apply built-in tools (Read, Write, Edit, Bash, Grep, Glob) effectively' },
+  { id: '3.1', domain: 3, statement: 'Configure CLAUDE.md files with appropriate hierarchy, scoping, and modular organization' },
+  { id: '3.2', domain: 3, statement: 'Create and configure custom slash commands and skills' },
+  { id: '3.3', domain: 3, statement: 'Apply path-specific rules for conditional convention loading' },
+  { id: '3.4', domain: 3, statement: 'Determine when to use plan mode vs direct execution' },
+  { id: '3.5', domain: 3, statement: 'Apply iterative refinement techniques for progressive improvement' },
+  { id: '3.6', domain: 3, statement: 'Integrate Claude Code into CI/CD pipelines' },
+  { id: '4.1', domain: 4, statement: 'Design prompts with explicit criteria to improve precision and reduce false positives' },
+  { id: '4.2', domain: 4, statement: 'Apply few-shot prompting to improve output consistency and quality' },
+  { id: '4.3', domain: 4, statement: 'Enforce structured output using tool use and JSON schemas' },
+  { id: '4.4', domain: 4, statement: 'Implement validation, retry, and feedback loops for extraction quality' },
+  { id: '4.5', domain: 4, statement: 'Design efficient batch processing strategies' },
+  { id: '4.6', domain: 4, statement: 'Design multi-instance and multi-pass review architectures' },
+  { id: '5.1', domain: 5, statement: 'Manage conversation context to preserve critical information across long interactions' },
+  { id: '5.2', domain: 5, statement: 'Design effective escalation and ambiguity resolution patterns' },
+  { id: '5.3', domain: 5, statement: 'Implement error propagation strategies across multi-agent systems' },
+  { id: '5.4', domain: 5, statement: 'Manage context effectively in large codebase exploration' },
+  { id: '5.5', domain: 5, statement: 'Design human review workflows and confidence calibration' },
+  { id: '5.6', domain: 5, statement: 'Preserve information provenance and handle uncertainty in multi-source synthesis' },
 ];
 
 export const objectiveDomain = (id: ObjectiveId): DomainId => Number(id[0]) as DomainId;

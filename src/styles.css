@@ -174,3 +174,8 @@ details.fb-sec summary { cursor: pointer; font-weight: 600; min-height: 32px; }
   .exam-bar .exam-counts { font-size: .8rem; flex-basis: 100%; order: 3; }
   .exam-bar .btn.small { min-height: 40px; padding: 2px 10px; }
 }
+
+.link-list { padding-left: 1.1em; } .link-list li { margin: 8px 0; }
+.guide-bullets summary { cursor: pointer; min-height: 36px; }
+.guide-bullets .bullets { padding-left: 1.1em; } .guide-bullets .bullets li { margin: 8px 0; }
+.dev-objectives li { margin: 6px 0; }

@@ -1,60 +1,106 @@
 // Claude Certified Developer – Foundations companion curriculum.
 //
-// Source status (checked 2026-11-20): the learning path page
-// https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations/ returned
-// HTTP 403 from the build environment, and docs/academy/ contained no transcripts, slides, notes,
-// or exports. Module titles and order below come from the build request. Lesson lists and learning
-// objectives are therefore NOT available and are not invented here. Architect-lesson links are
-// inferred from module titles only and are labelled as such in the UI.
+// Source status (2026-11-21): the path's public course landing pages on anthropic-partners.skilljar.com
+// (course descriptions, stated objectives, durations) were read through web search results; direct page
+// fetches are blocked by this environment's network policy. Lesson-level content sits behind the
+// Partner Academy login and is NOT reproduced here. Objectives below are paraphrased from the public
+// landing pages. Each objective links to the Architect lesson that teaches the same skill, or to an
+// original companion lesson (src/content/devLessons) when no Architect lesson covers it.
 import type { ObjectiveId } from './types';
+
+export interface DevObjective {
+  text: string;
+  architect?: ObjectiveId[];
+  companion?: string; // DevLesson id
+}
 
 export interface DevModule {
   order: number;
   title: string;
-  status: 'unavailable';
+  url: string;
+  minutes: number | null;
+  description: string;
+  objectives: DevObjective[];
+  /** What is still unavailable for this course. */
   missing: string;
-  /** Inferred from the module title only — not from course content. */
-  inferredArchitectLessons: ObjectiveId[];
-  inferredRationale: string;
 }
 
 export const DEV_PATH = {
   title: 'Claude Certified Developer – Foundations',
-  url: 'https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations/',
-  checkedOn: '2026-11-20',
-  access: 'HTTP 403 (environment network policy); no docs/academy/ exports supplied',
+  url: 'https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations',
+  checkedOn: '2026-11-21',
+  access: 'Course landing pages are public; lessons require a Claude Partner Network login on the Anthropic Partner Academy',
+  audience: 'Developers preparing for the CCDV-F exam (Claude Partner Network)',
+  exam: 'CCDV-F — third-party sources report 53 items, 120 minutes, scaled passing score 720 (100–1,000), $125. Not verified against an official CCDV-F guide.',
 };
+
+const MISSING = 'Lesson list, transcripts, slides, and in-course exercises (partner login required).';
 
 export const DEV_MODULES: DevModule[] = [
   {
-    order: 1, title: 'MSO Foundations', status: 'unavailable',
-    missing: 'All lessons, learning objectives, transcripts, and slides for "MSO Foundations". The meaning of "MSO" in this course could not be verified.',
-    inferredArchitectLessons: [],
-    inferredRationale: 'No mapping inferred: the module title alone does not identify which Architect skills it teaches.',
+    order: 1, title: 'MSO Foundations', minutes: 57,
+    url: 'https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations/mso-foundations',
+    description: 'Model fundamentals the rest of the path builds on: tokens, context, sampling, model choice, prompting modes, and how developers reach Claude programmatically.',
+    objectives: [
+      { text: 'Explain tokens and treat the context window as a fixed budget shared by every part of a request.', companion: 'dev-tokens-context' },
+      { text: 'Explain why sampling makes outputs vary and what non-determinism means for testing and evals.', companion: 'dev-tokens-context' },
+      { text: 'Choose a model tier, and keep the model choice separate from enabling a reasoning mode such as extended thinking.', companion: 'dev-model-selection' },
+      { text: 'Use zero-shot through multi-shot prompting.', architect: ['4.2'] },
+      { text: 'Access Claude through SDKs or raw REST, with synchronous or streaming responses, and async patterns for high-volume work.', companion: 'dev-api-access', architect: ['4.5'] },
+    ],
+    missing: MISSING + ' The expansion of "MSO" is not stated on the public page.',
   },
   {
-    order: 2, title: 'Production-Grade Prompting, Agents & Tool Use', status: 'unavailable',
-    missing: 'All lessons, learning objectives, transcripts, and slides for "Production-Grade Prompting, Agents & Tool Use".',
-    inferredArchitectLessons: ['1.1', '1.2', '1.3', '2.1', '2.3', '4.1', '4.2', '4.3'],
-    inferredRationale: 'Title names prompting, agents, and tool use — the subjects of Architect Domains 1, 2.1/2.3, and 4.1–4.3.',
+    order: 2, title: 'Production-Grade Prompting, Agents & Tool Use', minutes: null,
+    url: 'https://anthropic-partners.skilljar.com/production-grade-prompting-agents-tool-use',
+    description: 'Production prompt design, extended thinking, tool schemas and the tool-use loop, and choosing workflow versus agent patterns.',
+    objectives: [
+      { text: 'Write production prompts using system prompts, XML tags, few-shot examples, and output constraints.', companion: 'dev-prompts-thinking', architect: ['4.1', '4.2'] },
+      { text: 'Diagnose underperforming prompts, decide when to use extended thinking, set thinking budgets, and handle thinking blocks across tool-use turns.', companion: 'dev-prompts-thinking' },
+      { text: 'Design tool schemas that Claude selects correctly.', architect: ['2.1'] },
+      { text: 'Build the tool-use loop and decide between single and parallel tool calls.', architect: ['1.1'] },
+      { text: 'Choose between workflow and agent patterns.', architect: ['1.6'] },
+      { text: 'Wire tools and context into a loop, with human-in-the-loop checkpoints before irreversible actions.', architect: ['1.4', '5.2'] },
+    ],
+    missing: MISSING + ' Duration not shown in public search results.',
   },
   {
-    order: 3, title: 'Claude Code, MCP & Integration', status: 'unavailable',
-    missing: 'All lessons, learning objectives, transcripts, and slides for "Claude Code, MCP & Integration".',
-    inferredArchitectLessons: ['2.4', '2.5', '3.1', '3.2', '3.3', '3.4', '3.5'],
-    inferredRationale: 'Title names Claude Code and MCP — the subjects of Architect 2.4–2.5 and Domain 3.',
+    order: 3, title: 'Claude Code, MCP & Integration', minutes: null,
+    url: 'https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations/claude-code-mcp-integration',
+    description: 'Building MCP servers, working effectively in Claude Code, extending it, and connecting to enterprise systems.',
+    objectives: [
+      { text: 'Build an MCP server that exposes tools, resources, and prompts; choose a transport; set the configuration scope that controls who loads it.', companion: 'dev-mcp-server', architect: ['2.4'] },
+      { text: 'Use the explore–plan–code loop, permission modes, and human review gates.', companion: 'dev-claude-code-extensions', architect: ['3.4'] },
+      { text: 'Configure CLAUDE.md, hooks, and subagents.', architect: ['3.1', '1.5', '1.3'] },
+      { text: 'Package Skills and plugins.', companion: 'dev-claude-code-extensions', architect: ['3.2'] },
+      { text: 'Connect to enterprise systems with authentication.', companion: 'dev-mcp-server' },
+    ],
+    missing: MISSING + ' Duration not shown in public search results.',
   },
   {
-    order: 4, title: 'Production Engineering, Evals & Security', status: 'unavailable',
-    missing: 'All lessons, learning objectives, transcripts, and slides for "Production Engineering, Evals & Security".',
-    inferredArchitectLessons: ['1.4', '1.5', '3.6', '4.4', '4.5', '4.6', '5.3', '5.5'],
-    inferredRationale: 'Title names production engineering, evals, and security — closest to enforcement hooks, CI, validation, batch, review, and calibration topics.',
+    order: 4, title: 'Production Engineering, Evals & Security', minutes: 211,
+    url: 'https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations/production-engineering-evals-security',
+    description: 'Taking a working prototype to production: evals, tracing, failure handling, cost control, and security.',
+    objectives: [
+      { text: 'Build evaluation suites and calibrate LLM-as-judge scoring against human-labelled cases.', companion: 'dev-evals' },
+      { text: 'Test and trace agent behaviour.', companion: 'dev-evals' },
+      { text: 'Separate retriable errors from terminal ones.', architect: ['2.2', '5.3'] },
+      { text: 'Defend integrations against prompt injection and exposed secrets.', companion: 'dev-security' },
+      { text: 'Control cost.', companion: 'dev-cost', architect: ['4.5'] },
+    ],
+    missing: MISSING,
   },
   {
-    order: 5, title: 'Accelerators & IP Contribution', status: 'unavailable',
-    missing: 'All lessons, learning objectives, transcripts, and slides for "Accelerators & IP Contribution".',
-    inferredArchitectLessons: [],
-    inferredRationale: 'No mapping inferred: the title does not correspond to an Architect task statement.',
+    order: 5, title: 'Accelerators & IP Contribution', minutes: 155,
+    url: 'https://anthropic-partners.skilljar.com/path/claude-certified-developer-foundations/accelerators-ip-contribution',
+    description: 'Turning working solutions into reusable assets, contributing them back, and choosing where Claude workloads run.',
+    objectives: [
+      { text: 'Turn a working solution into a reusable asset such as an agent template, a configurable MCP server, or an eval suite.', companion: 'dev-accelerators' },
+      { text: 'Contribute a tool, pattern, or fix back through documented channels.', companion: 'dev-accelerators' },
+      { text: 'Choose where a Claude workload runs: the first-party API, Amazon Bedrock, Google Vertex AI, or third-party platforms.', companion: 'dev-deployment-platforms' },
+      { text: 'Build an application that coordinates several Claude deployments while keeping data and identity boundaries intact.', companion: 'dev-deployment-platforms' },
+    ],
+    missing: MISSING,
   },
 ];
 

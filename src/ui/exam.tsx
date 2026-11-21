@@ -25,7 +25,7 @@ export function ExamHome() {
   return (
     <div class="page">
       <h2>Full-length practice exam</h2>
-      <p class="muted">{EXAM_GUIDE.format.questions} questions · {EXAM_GUIDE.format.minutes} minutes · {EXAM_GUIDE.format.scenariosPerForm} of {EXAM_GUIDE.format.scenarioFamilies} scenarios · single-answer and multiple-response items. Format restated from the exam blueprint; see About for source status.</p>
+      <p class="muted">{EXAM_GUIDE.format.questions} questions · {EXAM_GUIDE.format.minutes} minutes · {EXAM_GUIDE.format.scenariosPerForm} of {EXAM_GUIDE.format.scenarioFamilies} scenarios · single-answer and multiple-response items. Format per the official exam guide v1.1.</p>
       {active ? (
         <section class="card resume-card">
           <h3>Exam in progress</h3>
@@ -233,7 +233,7 @@ export function Results({ id, query }: { id: string; query: URLSearchParams }) {
       </div>
       <div class="card small">
         <p><strong>Scoring rule (practice):</strong> each question is worth one point. Multiple-response items score only when your submitted selection exactly matches the correct set — no partial credit. Eliminated options are study aids and never score.</p>
-        <p><strong>Official passing score:</strong> {EXAM_GUIDE.passingScore ?? 'not available — the exam guide was not supplied'}. This raw practice score is not converted to the official scaled score and does not predict a pass.</p>
+        <p><strong>Official passing score (exam guide v{EXAM_GUIDE.version}):</strong> {EXAM_GUIDE.passingScore}. The official exam uses a scaled score set by a standard-setting study; this raw practice score is not converted to it and does not predict a pass.</p>
         {a.kind === 'retake' && origin?.score ? <p><strong>Retake comparison:</strong> original attempt {origin.score.raw}/{origin.score.total}; this retake {s.raw}/{s.total}. Retakes are tracked separately from first-attempt accuracy.</p> : null}
       </div>
       <p class="actions">

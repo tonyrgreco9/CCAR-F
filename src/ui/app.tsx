@@ -5,9 +5,10 @@ import { LearnHome, LessonPage, CasePage, DevPathPage } from './learn';
 import { ExamHome, ExamRunner, Results, MissedReview } from './exam';
 import { PracticeHome, PracticeSessionPage } from './practice';
 import { Dashboard, PlanPage, CoveragePage, AboutPage } from './pages';
+import { LinksPage } from './links';
 
 const NAV: [string, string][] = [
-  ['#/', 'Dashboard'], ['#/learn', 'Learn'], ['#/practice', 'Practice'], ['#/exam', 'Exam'], ['#/plan', 'Study plan'], ['#/coverage', 'Coverage'], ['#/about', 'About'],
+  ['#/links', 'Links'], ['#/', 'Dashboard'], ['#/learn', 'Learn'], ['#/practice', 'Practice'], ['#/exam', 'Exam'], ['#/plan', 'Study plan'], ['#/coverage', 'Coverage'], ['#/about', 'About'],
 ];
 
 export function App() {
@@ -24,7 +25,9 @@ export function App() {
 
   let page;
   if (!p0) page = <Dashboard />;
+  else if (p0 === 'links') page = <LinksPage />;
   else if (p0 === 'learn') page = <LearnHome />;
+  else if (p0 === 'dev') page = <LessonPage id={p1} section={r.query.get('s')} dev />;
   else if (p0 === 'lesson') page = <LessonPage id={p1} section={r.query.get('s')} />;
   else if (p0 === 'case') page = <CasePage scenario={p1 as any} />;
   else if (p0 === 'devpath') page = <DevPathPage />;
@@ -49,7 +52,7 @@ export function App() {
           <button type="button" class="menu-btn" aria-expanded={menu ? 'true' : 'false'} aria-controls="mainnav" onClick={() => setMenu(!menu)}>Menu</button>
           <nav id="mainnav" class={menu ? 'open' : ''} aria-label="Main">
             {NAV.map(([href, label]) => {
-              const cur = href === active || (href === '#/learn' && ['lesson', 'case', 'devpath'].includes(p0 ?? '')) || (href === '#/exam' && p0 === 'results');
+              const cur = href === active || (href === '#/learn' && ['lesson', 'case', 'devpath', 'dev'].includes(p0 ?? '')) || (href === '#/exam' && p0 === 'results');
               return <a key={href} href={href} aria-current={cur ? 'page' : undefined}>{label}</a>;
             })}
           </nav>
@@ -62,7 +65,7 @@ export function App() {
       {!inExam ? (
         <footer class="foot small">
           <p>{INDEPENDENCE_NOTICE}</p>
-          <p>Exam guide version: {EXAM_GUIDE.version ?? 'not available'} · effective date: {EXAM_GUIDE.effectiveDate ?? 'not available'} (guide not supplied — see <a href="#/coverage">Coverage</a>).</p>
+          <p>Aligned to the official exam guide version {EXAM_GUIDE.version}, effective {EXAM_GUIDE.effectiveDate} (<a href={EXAM_GUIDE.url} target="_blank" rel="noopener noreferrer">PDF</a>). See <a href="#/coverage">Coverage</a>.</p>
         </footer>
       ) : null}
     </div>

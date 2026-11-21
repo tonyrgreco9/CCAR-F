@@ -70,10 +70,11 @@ export function validateQuestion(q: Question, lessonIds?: Set<string>): string[]
   return e;
 }
 
-export function validateLesson(l: Lesson): string[] {
+export function validateLesson(l: Lesson, opts: { dev?: boolean } = {}): string[] {
   const e: string[] = [];
   const w = `lesson ${l.id}`;
-  if (!OBJ_IDS.has(l.id)) e.push(`${w}: unknown objective`);
+  if (!opts.dev && !OBJ_IDS.has(l.id)) e.push(`${w}: unknown objective`);
+  if (opts.dev && !/^dev-[a-z0-9-]+$/.test(l.id)) e.push(`${w}: dev lesson id must be dev-<slug>`);
   if (!l.outcome || l.outcome.length < 30) e.push(`${w}: outcome missing`);
   if (l.learningPoints.length < 4) e.push(`${w}: needs ≥4 learningPoints`);
   if (l.terms.length < 2) e.push(`${w}: needs ≥2 terms`);
