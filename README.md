@@ -9,7 +9,9 @@ browser's localStorage.
 
 ## Run it
 
-Requires [Bun](https://bun.sh) ≥ 1.2 (the build uses Bun's built-in bundler and test runner).
+Live site: https://tonyrgreco9.github.io/CCAR-F/ (no install needed).
+
+To run locally you need [Bun](https://bun.sh) ≥ 1.2 (the build uses Bun's built-in bundler and test runner).
 
 ```bash
 bun run dev        # http://localhost:4317 — serves source with on-the-fly bundling
@@ -28,9 +30,10 @@ The default port is 4317. `PORT=8080 bun run dev` changes it; if the port is tak
 | --- | --- |
 | Architect path | 30 lessons (one per task statement 1.1–5.6): concept → worked example → design comparison → common mistake → labelled exercise → 3-item closed-book check → review cards → targeted practice |
 | Case studies | 6 guided cases (one per scenario family), 4 decisions each, walkthrough revealed after you choose |
-| Question bank | 204 original questions in 192 question families (32 families × 6 scenarios + 12 close variants), 48 multiple-response |
+| Question bank | 256 original questions in 244 question families (12 close variants), 59 multiple-response; every one of the guide's 240 Knowledge/Skills bullets is mapped to a lesson section and assessed |
 | Full exam | 60 questions, 120 min, 4 of 6 scenarios grouped by scenario, domain counts 16/11/12/12/9 |
-| Developer companion | Official module order, availability status, title-inferred links, 9-item prerequisite diagnostic, 9 original refreshers |
+| Developer companion | 5 courses in official order with their public objectives; each objective links to an Architect lesson or one of 11 original companion lessons; 9-item prerequisite diagnostic, 9 refreshers |
+| Links | Official exam resources, free Anthropic courses, key docs, third-party study guides, practice exams, YouTube videos |
 
 ## How exams are built
 
@@ -56,7 +59,7 @@ The engine (`src/engine`), content (`src/content`), and tests do not depend on t
 
 ## Source status
 
-The CCAR-F exam guide and Academy exports were **not present** in `docs/`, and Skilljar and the Anthropic docs were unreachable from the build environment. See [docs/COVERAGE.md](docs/COVERAGE.md) and the in-app **Coverage** page for exactly what is missing. Fill in `EXAM_GUIDE` in `src/content/blueprint.ts` when the guide is available.
+Exam scope follows the official **Claude Certified Architect – Foundations Exam Guide v1.1 (effective November 2026)**: blueprint, 30 task statements, 240 Knowledge/Skills bullets, scenarios, exercises and sample questions. The Developer Foundations companion uses the public course landing pages; lesson content behind the Partner Academy login is not reproduced. Anthropic documentation pages could not be opened from the build environment, so version-sensitive product details carry dated notes. See [docs/COVERAGE.md](docs/COVERAGE.md) and the in-app **Coverage** page.
 
 ## Learner data
 

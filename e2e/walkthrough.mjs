@@ -182,7 +182,7 @@ try {
   await page2.waitForSelector('.results');
   const resText = await page2.textContent('.results');
   check('results show raw score, elapsed, unanswered, domain and objective tables', /\/ 60/.test(resText) && resText.includes('elapsed') && resText.includes('Accuracy by domain') && resText.includes('Performance by objective'));
-  check('results explain exact-match rule and passing-score caveat', resText.includes('exactly matches the correct set') && resText.includes('not converted to the official scaled score'));
+  check('results explain exact-match rule and passing-score caveat', resText.includes('exactly matches the correct set') && resText.includes('this raw practice score is not converted to it') && resText.includes('720'));
   await shot(page2, '05-results');
   // review missed sequentially, find the multi item
   await page2.click('a:has-text("Review missed questions")');

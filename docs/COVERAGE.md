@@ -1,32 +1,37 @@
 # Source coverage report
 
-Checked 2026-11-20. The interactive version is the **Coverage** page in the app (`#/coverage`).
+Updated 2026-11-21. The interactive version is the **Coverage** page in the app (`#/coverage`).
 
-## Sources that were unavailable
+## Sources
 
-| Source | Status | What is missing |
-| --- | --- | --- |
-| CCAR-F exam guide (`docs/`) | Not present in the repository | Version; effective date; official passing score; every "Knowledge of" and "Skills in" bullet for the 30 task statements; preparation exercises; sample questions and their explanations |
-| Claude Certified Developer – Foundations path (anthropic-partners.skilljar.com) | HTTP 403 from the environment's network policy; no `docs/academy/` exports | All lessons, learning objectives, transcripts and slides for: 1. MSO Foundations; 2. Production-Grade Prompting, Agents & Tool Use; 3. Claude Code, MCP & Integration; 4. Production Engineering, Evals & Security; 5. Accelerators & IP Contribution |
-| Prerequisite courses | Not reachable | Claude 101; Claude Code 101; Claude Platform 101; Claude Code in Action; AI Fluency: Framework & Foundations; Building with the Claude API; Introduction to Model Context Protocol; Model Context Protocol: Advanced Topics; AI Capabilities and Limitations |
-| Anthropic documentation (docs.claude.com, anthropic.com/engineering, modelcontextprotocol.io) | HTTP 403 | Live verification of every command, config key, API behaviour and SDK example. All cited pages are marked "not verified" in the app |
+| Source | Status |
+| --- | --- |
+| Claude Certified Architect – Foundations Exam Guide **v1.1, effective November 2026** | Downloaded from Anthropic's public course file storage and read in full. Authority for exam scope. Local copy: `docs/source/` (not committed; link in the app). |
+| Claude Certified Developer – Foundations path (5 courses) | Public course landing pages (descriptions, objectives, durations) read via web search. Lessons require a Claude Partner Network login and were **not** used. |
+| Anthropic / MCP documentation | Pages could not be opened from the build environment (network policy). Version-sensitive details carry dated notes in lessons. |
 
-## What was used instead
+## Architect coverage against the official guide
 
-- Task statements, domain weights, scenario families, and exam format: restated in the build request.
-- Product facts: the author's knowledge, limited to well-established behaviour. Anything version-sensitive is flagged in a dated lesson note (2026-11-20).
-- Developer path: module order and titles only. Architect-lesson links are **inferred from titles** and labelled that way. 0 verified Academy learning objectives are mapped.
-- Refreshers and diagnostic: original content on each course's public subject. They don't claim to reflect course content.
+- 30 task statements, official titles.
+- **240 / 240** Knowledge/Skills bullets mapped to the lesson sections that teach them, each with a description reviewed against the lesson text.
+- **240 / 240** bullets assessed by at least one bank question (one bullet, 3.5.S2, has a partial-coverage note: the performance-requirements aspect is taught but not separately assessed).
+- 12 guide sample questions mapped by topic to lessons; bank items that closely copied a sample were rewritten into different situations.
+- 4 preparation exercises mapped to lessons and case studies.
+- Out-of-scope topics removed from assessed items (e.g. key rotation).
+- Bank: 256 questions, 244 families, all six scenarios; every 4-scenario combination yields a valid 60-item form, and the first two forms for a new learner share no family.
 
-## Architect coverage (measured against task statements, not guide bullets)
+## Developer Foundations
 
-All 30 task statements have a lesson with a worked example, a design comparison, a common mistake, a labelled exercise, 3 knowledge checks, review cards, and 5–8 bank question families. Each lesson's `learningPoints` are app-authored sub-objectives. They can't be checked against the guide's bullets until the guide is supplied. **This is not a claim of complete coverage.**
+| Course | Minutes | Public objectives | Architect lessons | Companion lessons |
+| --- | --- | --- | --- | --- |
+| 1. MSO Foundations | 57 | 5 | 4.2, 4.5 | tokens & context, model selection, API access |
+| 2. Production-Grade Prompting, Agents & Tool Use | not published | 6 | 1.1, 1.4, 1.6, 2.1, 4.1, 4.2, 5.2 | prompts & extended thinking |
+| 3. Claude Code, MCP & Integration | not published | 5 | 1.3, 1.5, 2.4, 3.1, 3.2, 3.4 | MCP server, Claude Code extensions |
+| 4. Production Engineering, Evals & Security | 211 | 5 | 2.2, 4.5, 5.3 | evals, security, cost |
+| 5. Accelerators & IP Contribution | 155 | 4 | — | accelerators, deployment platforms |
+
+Still unavailable for every course: the lesson list, transcripts, slides and in-course exercises (partner login). The expansion of "MSO" is not stated publicly.
 
 ## Points flagged for verification against current docs
 
-Authors flagged these as uncertain. Each appears in a dated lesson note or is kept out of the deciding detail of a question:
-
-- Agent SDK: Task vs Agent tool name; `AgentDefinition` fields; hook callback signatures and output fields (`permissionDecision`, `hookSpecificOutput`, replacing MCP tool output in PostToolUse); `HookMatcher` pattern syntax; `resume` / `fork_session` option names; whether hooks on a coordinator apply to subagents.
-- Claude Code: skill frontmatter (`context: fork`, `allowed-tools` semantics: restrict or pre-approve); commands-into-skills merge and name precedence; `@import` depth and approval; when subdirectory CLAUDE.md and `paths:` rules load; plan-mode entry; Explore subagent name and tools; `/compact` focus instructions; MCP scope names and the default scope for `claude mcp add`; `--json-schema` availability and its result field; `--allowedTools` syntax.
-- API: forced `tool_choice` with extended thinking; `pause_turn` handling; exact Message Batches result types, limits and ordering; structured-outputs parameter names and supported JSON Schema keywords.
-- MCP: field names such as `errorCategory` and `isRetryable` are app conventions, not spec fields.
+Lessons keep dated notes (2026-11-21) wherever current product behaviour may differ from the guide or from the author's knowledge, for example: hook output field names, exact permission-mode names, plugin manifest paths, MCP SDK method names, structured-output parameter names, extended-thinking budget rules, and model availability on cloud platforms.
