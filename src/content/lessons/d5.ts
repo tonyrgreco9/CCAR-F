@@ -1,11 +1,11 @@
 import type { Lesson } from '../types';
 
 // Domain 5 — Context Management & Reliability.
-// Original, app-authored lessons. Learning points are an app-authored decomposition of each
-// task statement; they have not been checked against the exam guide's Knowledge/Skills bullets
-// (the guide was not supplied).
+// Original, app-authored lessons. Learning points were aligned on 2026-11-21 with the Knowledge/Skills
+// bullets of task statements 5.1–5.6 in the CCAR-F Exam Guide v1.1 (see src/content/guide.ts and
+// src/content/coverage/d5.ts). Wording is original; the guide wins on scope and named mechanisms.
 
-const NOTE_DATE = '2026-11-20';
+const NOTE_DATE = '2026-11-21';
 
 export const lessons: Lesson[] = [
   // ---------------------------------------------------------------- 5.1
@@ -23,27 +23,34 @@ export const lessons: Lesson[] = [
       { term: 'Structured subagent return', definition: 'A subagent result that carries metadata (IDs, sources, dates, status, coverage) in named fields rather than as free prose, so the coordinator can preserve it exactly.' },
     ],
     learningPoints: [
-      'Explain why progressive summarization loses exact amounts, dates, and identifiers, and what that costs in a transactional task.',
-      'Design a persistent case-facts block that is kept outside summarized history and updated as facts change.',
-      'Trim verbose tool outputs to the fields the task needs before they consume context.',
-      'Place key findings at the start (or end) of long inputs and organize them under clear section headers to counter lost-in-the-middle effects.',
-      'Require subagents to return structured metadata (IDs, dates, sources, status) rather than prose summaries.',
-      'Recognize when summarization is fine (narrative, tone, resolved side-topics) and when exact values must be preserved verbatim.',
+      'Explain how progressive summarization turns exact amounts, percentages, dates, and customer-stated expectations into vague statements, and why the model handles the start and end of long inputs more reliably than the middle.',
+      'Explain why each API request must carry the complete conversation history, and how tool results that stay in that history consume tokens far out of proportion to their relevance.',
+      'Extract transactional facts (amounts, dates, order numbers, statuses) into a persistent case-facts block sent with every prompt, outside the summarized history, and keep a separate per-issue layer when one session covers several issues.',
+      'Trim verbose tool outputs to the fields the task needs (for example, only the return-relevant fields of an order lookup) before they accumulate in context.',
+      'Open aggregated inputs with a key-findings summary and organize the detailed results under explicit section headers to reduce position effects.',
+      'Require subagents to return structured data (key facts, citations, relevance scores) with metadata such as dates, source locations, and methodological context, instead of verbose content and reasoning chains, when downstream agents have limited context.',
     ],
     concept: `A long conversation is like a long phone call where someone keeps taking notes and then throwing away the original recording. Each time the notes are rewritten to save space, small details blur: "$137.42 on invoice INV-88213, charged 3 March" becomes "a charge of around $140 last month." For chit-chat that does not matter. For a refund, a dispute, or a migration plan, the exact number, date, or ID *is* the task.
 
 ### Why details get lost
 
-**Progressive summarization** compresses older turns into shorter summaries so the conversation fits the context window. Summaries are written for gist, so they round numbers, merge similar items, and drop identifiers that seemed incidental at the time. After two or three passes, the agent may confidently act on a value that was never in the source.
+**Progressive summarization** compresses older turns into shorter summaries so the conversation fits the context window. Summaries are written for gist, so they round numbers and percentages ("a 12.5% fee" becomes "a fee"), blur dates, merge similar items, and drop identifiers that seemed incidental at the time. They also soften what the customer said they expect: "I need the credit before my 12 May bill" becomes "customer wants it soon". After two or three passes, the agent may confidently act on a value that was never in the source.
 
-A second, independent problem is **lost in the middle**: in a long context, models tend to use material at the beginning and end more reliably than material buried in the middle. A crucial fact stated once, forty turns ago, inside a large tool result, is at risk even if it was never summarized.
+A second, independent problem is **lost in the middle**: in a long input, models reliably use material at the beginning and end but may skip findings buried in the middle. A crucial fact stated once, forty turns ago, inside a large tool result, is at risk even if it was never summarized.
+
+### Every request carries the whole conversation
+
+The Messages API is stateless: the model sees only what you send in that request. To keep a conversation coherent, each request must include the complete history so far: user turns, assistant turns, and every \`tool_use\` with its \`tool_result\`. Sending only the newest message to save tokens makes the agent re-ask for details, forget what it promised, and contradict itself. When history gets too long, compress it deliberately (summary plus a facts block); do not just drop it.
+
+That is also why tool results are expensive. Each result stays in the history and is re-sent on every later request. An order lookup that returns 40+ fields when a return decision needs 5 keeps charging for the other 35 on every turn, and buries the 5 that matter.
 
 ### The core fixes
 
-- **Keep a structured case-facts block.** Store the facts the task depends on (customer ID, order IDs, amounts, dates, verification status, what was promised) in a fixed structure *outside* the summarized history. Re-inject it verbatim near the top of every request, and update fields as facts change rather than appending prose.
-- **Trim tool outputs.** A billing API may return 60 fields; the task needs six. Reduce results to relevant fields before they enter context (for example in a post-tool hook or a tool wrapper). Less noise means fewer tokens and less to get lost.
-- **Position and structure.** Put key findings at the start of long inputs, repeat critical constraints near the end if needed, and use section headers so the model can locate things.
-- **Structured subagent returns.** When a subagent reports back, require named fields (IDs, dates, source URLs, status, coverage) instead of a paragraph. Prose summaries from subagents are another round of lossy compression.
+- **Keep a structured case-facts block.** Store the transactional facts the task depends on (customer ID, order numbers, amounts, dates, statuses, verification, what was promised or expected) in a fixed structure *outside* the summarized history. Include it verbatim near the top of every prompt, and update fields as facts change rather than appending prose.
+- **Give each issue its own layer.** When one session covers several issues (a refund, a device return, a plan change), keep a separate structured record per issue (its order IDs, amounts, status) so values from one issue are never applied to another.
+- **Trim tool outputs.** Reduce results to the relevant fields before they enter context, for example in a post-tool hook or a tool wrapper that keeps only the return-relevant fields of an order lookup.
+- **Position and structure aggregated inputs.** When combining many results into one input, open with a short key-findings summary, then put the detailed results under explicit section headers (one per source or subagent) so nothing important sits unlabeled in the middle.
+- **Structured, compact subagent returns.** Require named fields (key facts, citations, relevance scores) plus metadata: dates, source locations, and methodological context (survey, filing, model estimate). When the downstream agent has a limited context budget, change the upstream agent to return this structure *instead of* verbose content and reasoning chains ("first I searched for...").
 
 ### Terminology in one line each
 
@@ -66,13 +73,14 @@ Customer is frustrated about repeated roaming fees.`,
     "customer_id": "CUS-40917",
     "identity_verified": true,
     "verified_at": "2026-03-14T10:02:00Z",
-    "disputed_items": [
-      { "invoice_id": "INV-88213", "line": "Roaming day pass", "amount": 137.42, "currency": "USD", "charged_on": "2026-03-03", "status": "refund_offered" },
-      { "invoice_id": "INV-88213", "line": "Data top-up", "amount": 59.00, "currency": "USD", "charged_on": "2026-03-05", "status": "under_review" }
-    ],
-    "commitments": ["Refund INV-88213 roaming line if usage log shows no roaming sessions"],
     "refund_cap_remaining": 150.00,
-    "open_questions": ["Was the data top-up auto-renewed or manually purchased?"]
+    "customer_expectations": ["Credit visible before the 12 May bill"]
+  },
+  "issues": {
+    "ISSUE-1 roaming charge": { "invoice_id": "INV-88213", "amount": 137.42, "currency": "USD", "charged_on": "2026-03-03", "status": "refund_offered",
+      "commitment": "Refund if usage log shows no roaming sessions" },
+    "ISSUE-2 data top-up": { "invoice_id": "INV-88213", "amount": 59.00, "currency": "USD", "charged_on": "2026-03-05", "status": "under_review",
+      "open_question": "Auto-renewed or manually purchased?" }
   }
 }`,
         },

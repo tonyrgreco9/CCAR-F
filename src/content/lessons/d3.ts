@@ -1,11 +1,11 @@
 import type { Lesson } from '../types';
 
 // Domain 3 — Claude Code Configuration & Workflows.
-// App-authored lessons. Learning points are the app's own decomposition of each task
-// statement; they are not the exam guide's Knowledge/Skills bullets (guide not supplied).
+// App-authored lessons (original wording). Learning points restate the Knowledge/Skills
+// bullets of the official exam guide v1.1 for task statements 3.1-3.6 in the app's own words.
 
 const F = '```';
-const NOTE_DATE = '2026-11-20';
+const NOTE_DATE = '2026-11-21';
 
 export const lessons: Lesson[] = [
   // ---------------------------------------------------------------------------
@@ -26,12 +26,12 @@ export const lessons: Lesson[] = [
       { term: '/memory', definition: 'Slash command that shows which memory files the current session has loaded and lets you open them for editing. The first tool for diagnosing missing instructions.' },
     ],
     learningPoints: [
-      'Distinguish user, project, and directory CLAUDE.md files by who receives them and when they load.',
-      'Decide which instructions belong in version control and which must stay personal.',
-      'Use @imports to reuse existing docs and to reference per-engineer files without committing them.',
-      'Split a large project CLAUDE.md into topic files under .claude/rules/.',
-      'Use /memory to compare loaded memory between two sessions and find the cause of a missing instruction.',
-      'Recognize when an instruction is too situational for always-loaded memory and belongs in a skill or path-scoped rule instead.',
+      'Describe the three CLAUDE.md levels: user (~/.claude/CLAUDE.md), project (.claude/CLAUDE.md or root CLAUDE.md), and directory (subdirectory CLAUDE.md files).',
+      'Explain that ~/.claude/CLAUDE.md applies only to its owner and never reaches teammates through version control.',
+      'Diagnose a hierarchy problem, such as a new team member missing instructions that live in someone\'s user-level file instead of project-level configuration.',
+      'Use @import to keep CLAUDE.md modular, including having each package\'s CLAUDE.md import only the standards files its maintainers judge relevant.',
+      'Split a large CLAUDE.md into focused topic files in .claude/rules/ (for example testing.md, api-conventions.md, deployment.md) as an alternative to one monolithic file.',
+      'Use /memory to verify which memory files a session has loaded and to diagnose behavior that differs between sessions.',
     ],
     concept: `Claude Code reads plain Markdown instruction files, called *memory*, when a session starts and keeps them in context for the whole session. Where you put an instruction decides **who** receives it and **when**. Ask three questions about every instruction: should everyone on the repo get it, or only me? Does it apply everywhere, or only in one part of the tree? Is it relevant often enough to sit in context all the time?
 
@@ -48,13 +48,19 @@ These files **add up**; a directory file does not replace the root file. If two 
 
 A memory file can include another file with an \`@path\` line, for example \`@docs/architecture.md\` or \`@~/.claude/payments-local.md\`. Relative paths resolve from the file that contains the import. Imports let you reuse an existing doc without copying it, and let a committed file point at a personal file that each engineer creates on their own machine.
 
+Imports are also how you stay **selective** in a monorepo. Keep the shared standards as separate files (say \`docs/standards/security.md\`, \`money.md\`, \`react.md\`, \`sql.md\`) and let each package's maintainers decide which ones their package's \`CLAUDE.md\` imports. The billing team, who know their code handles money and PII, import \`security.md\` and \`money.md\`; the design-system team import only \`react.md\`. Each standard has one source of truth, and no package carries standards its maintainers know are irrelevant.
+
+### Splitting into .claude/rules/
+
+The other way to break up a monolithic CLAUDE.md is the \`.claude/rules/\` directory: one focused Markdown file per topic, such as \`testing.md\`, \`api-conventions.md\`, and \`deployment.md\`. Every file there is picked up automatically (no import line needed), each topic gets its own owner and review history, and edits to one topic no longer conflict with edits to another. Without frontmatter a rules file loads every session; adding \`paths:\` makes it conditional (lesson 3.3).
+
 ### What is shared
 
 Only what is committed and not gitignored: project memory, committed rules files, committed directory files, and in-repo files they import. User memory, and anything imported from a home directory, exists on one machine only.
 
 ### Diagnosing a missing instruction
 
-Run \`/memory\` in both sessions and compare the lists of loaded files. The usual causes: the instruction lives in someone's user memory; the file is uncommitted or gitignored; an import points at a path that exists only on one laptop; or the teammate launched Claude somewhere the relevant directory file has not been loaded yet.`,
+Run \`/memory\` in both sessions and compare the lists of loaded files. It shows exactly which memory files the current session has loaded, so it is the first check whenever Claude behaves differently for two people, or for one person on two days. The usual causes: the instruction lives in someone's user memory; the file is uncommitted or gitignored; an import points at a path that exists only on one laptop; or the teammate launched Claude somewhere the relevant directory file has not been loaded yet.`,
     example: {
       intro:
         'Tidewater Health\'s monorepo after a cleanup. The root file stays short and imports detail; topic rules live in `.claude/rules/`; the Terraform guard lives next to the Terraform. One engineer keeps a personal import for local settings.',
@@ -99,6 +105,16 @@ Run \`/memory\` in both sessions and compare the lists of loaded files. The usua
         },
         {
           lang: 'markdown',
+          caption: 'services/billing/CLAUDE.md (committed; billing maintainers chose these imports)',
+          code: `# Billing service
+Standards that apply here (chosen by the billing maintainers):
+@../../docs/standards/security.md
+@../../docs/standards/money.md
+
+- Amounts are integer cents; never use floating point for money.`,
+        },
+        {
+          lang: 'markdown',
           caption: '~/.claude/tidewater-local.md (one engineer\'s machine, not committed)',
           code: `- My local Postgres listens on port 5433.
 - Use the AWS profile \`sandbox-priya\` when suggesting CLI commands.`,
@@ -107,7 +123,8 @@ Run \`/memory\` in both sessions and compare the lists of loaded files. The usua
       walkthrough: `1. **Root \`CLAUDE.md\`** holds only what every session in every directory needs: commands, cross-cutting conventions, and an import of the existing architecture doc so it is not duplicated.
 2. **\`infra/CLAUDE.md\`** carries the Terraform guard. It is directory-bound, so engineers working on the React app do not carry it around. (A rule this important should also be enforced with permissions or hooks; memory is guidance, not a gate.)
 3. **\`.claude/rules/security.md\`** is a topic file without \`paths:\`, so it behaves like part of project memory but is easier to own and review separately.
-4. **The \`@~/.claude/tidewater-local.md\` import** lets each engineer keep machine-specific settings for this repo without committing them. Engineers who never create the file simply get nothing from that line.
+4. **\`services/billing/CLAUDE.md\`** imports only the two shared standards its maintainers know apply to billing. The web app's \`CLAUDE.md\` imports a different selection, and each standard still lives in exactly one file under \`docs/standards/\`.
+5. **The \`@~/.claude/tidewater-local.md\` import** lets each engineer keep machine-specific settings for this repo without committing them. Engineers who never create the file simply get nothing from that line.
 
 **Diagnosis scenario.** A new engineer, Sam, says Claude keeps hard-coding a port. You run \`/memory\` and see the root file, \`security.md\`, and \`~/.claude/tidewater-local.md\`. Sam runs \`/memory\` and sees the root file and \`security.md\` only, because Sam never created the personal file. The fix is not to commit Priya's port; it is to tell Sam to create his own local file, or to move a genuinely shared default (for example "read the port from \`DATABASE_URL\`") into project memory.`,
     },
@@ -196,8 +213,8 @@ Run \`/memory\` in both sessions and compare the lists of loaded files. The usua
     ],
     sources: ['guide-d3', 'cc-memory', 'cc-best-practices', 'app-authored'],
     notes: [
-      { date: NOTE_DATE, text: 'Import details (maximum nesting depth of imports, whether a first-time external import asks for approval) and exactly when subdirectory CLAUDE.md files are pulled in have changed across Claude Code releases. Verify against the current Memory docs.' },
-      { date: NOTE_DATE, text: 'Claude Code also supports organization-managed (enterprise policy) memory and has at times supported a gitignored `CLAUDE.local.md`. Their locations and status are version-sensitive, so this lesson teaches imports from the home directory for personal per-project settings instead. Verify against current docs.' },
+      { date: NOTE_DATE, text: 'The exam guide confirms the three levels, @import, .claude/rules/, and /memory as taught here. Finer import details (maximum nesting depth, whether a first-time external import asks for approval) and exactly when subdirectory CLAUDE.md files are pulled in have changed across Claude Code releases and are not exam topics; check the current Memory docs before relying on them.' },
+      { date: NOTE_DATE, text: 'Current Claude Code also has organization-managed (policy) memory and has at times supported a gitignored `CLAUDE.local.md`. The exam guide does not list either, so this lesson teaches home-directory imports for personal per-project settings. Check current docs if you use them.' },
     ],
   },
 

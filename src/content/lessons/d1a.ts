@@ -751,22 +751,22 @@ async for message in query(prompt=analyst_question, options=options):
       { term: 'Deterministic enforcement', definition: 'A rule enforced by code (a hook, a gate in the tool layer, or the backend) so it holds on every call regardless of what the model decides.' },
       { term: 'Probabilistic compliance', definition: 'Following a rule because the prompt asks for it. Usually reliable, never guaranteed.' },
       { term: 'PreToolUse hook', definition: 'Agent SDK hook that runs before a tool call executes and can allow, deny, or modify it.' },
-      { term: 'Handoff summary', definition: 'A structured record passed to a human when the agent escalates: who the customer is, what was verified, what was done, what is open, and what to do next.' },
+      { term: 'Handoff summary', definition: 'A structured record passed to a human when the agent escalates mid-process: who the customer is, what was verified, the root cause found, what was done (with amounts), what is open, and the recommended next action.' },
       { term: 'Multi-concern request', definition: 'One customer message that contains several separate issues, each with its own prerequisites and outcome.' },
     ],
     learningPoints: [
-      'Explain the difference between probabilistic compliance with a prompt instruction and deterministic enforcement with a hook or code gate.',
-      'Implement a prerequisite gate that blocks issue_refund until the customer has been verified in the current case, returning a reason Claude can act on.',
+      'Explain the difference between programmatic enforcement of workflow order (hooks, prerequisite gates) and prompt-based guidance.',
+      'Explain why prompt instructions alone keep a non-zero failure rate, so rules that need deterministic compliance (identity verified before money moves) need code.',
+      'Implement a prerequisite gate that blocks a downstream tool such as issue_refund until get_customer has returned a verified customer ID, with a reason Claude can act on.',
       'Decide when prompt guidance alone is acceptable: preferences and orderings where an occasional miss is cheap and recoverable.',
-      'Write a structured handoff summary with customer ID, verification status, actions taken, open items, and a recommended next action.',
-      'Break a multi-concern request into separate concerns, handle them in sequence with each concern\'s own prerequisites, and report status for each.',
-      'Recognize when a rule should also be enforced in the backend service, not only in the agent.',
+      'Split a multi-concern request into distinct items, investigate them in parallel with shared context (one verified customer, one account), and synthesize one unified resolution.',
+      'Write a structured mid-process handoff (customer ID, root cause, refund amount, actions taken, recommended action) for a human who cannot see the conversation transcript.',
     ],
     concept: `Some rules must hold every single time. "Verify the customer's identity before issuing a refund" is one. Others are preferences, such as "check the invoice before the transaction log". A prompt instruction makes the model *very likely* to follow a rule; a code gate makes it *certain*. The design skill is knowing which rules need which.
 
 ### Probabilistic versus deterministic
 
-Instructions in a system prompt are **probabilistic**. Claude follows them most of the time, but a long conversation, a persuasive customer, or an unusual path can lead to a skipped step. Capital letters and repetition do not change that. A **deterministic** gate is code that runs on every tool call and refuses the action when the prerequisite is not met. In the Agent SDK, a \`PreToolUse\` hook can inspect a pending call such as \`issue_refund\` and deny it unless verification has succeeded for that customer in this case. The denial reason goes back to Claude, which can then do the missing step. Where you control the backend, enforce the same rule there too, so no client can bypass it.
+Instructions in a system prompt are **probabilistic**. Claude follows them most of the time, but the failure rate is never zero: a long conversation, a persuasive customer, or an unusual path can lead to a skipped step. Capital letters, repetition, and few-shot examples lower the rate without removing it. When compliance must be deterministic, such as verifying identity before any financial operation, prompt guidance alone is the wrong tool. A **deterministic** gate is code that runs on every tool call and refuses the action when the prerequisite is not met. In the Agent SDK, a \`PreToolUse\` hook can inspect a pending call such as \`issue_refund\` and deny it unless verification has succeeded for that customer in this case. The denial reason goes back to Claude, which can then do the missing step. Where you control the backend, enforce the same rule there too, so no client can bypass it.
 
 ### When prompt guidance is enough
 
@@ -774,11 +774,12 @@ Prompt guidance is acceptable when a miss is cheap and recoverable: tone, the or
 
 ### Handoffs to humans
 
-When the agent escalates, the human should not need to reread the chat. Pass a **structured handoff summary**:
+When the agent escalates partway through a process, the human usually works in a different tool and **cannot see the conversation transcript**. Everything they need must travel in a **structured handoff summary**:
 
 - customer ID and verification status (and how verification was done),
+- the root cause the agent found (or its best analysis of it),
 - the customer's concerns, each with its current status,
-- actions already taken, with amounts and reference IDs,
+- actions already taken, with amounts (for example the refund amount at issue) and reference IDs,
 - why the case is escalating,
 - a recommended next action.
 
@@ -786,7 +787,13 @@ Structured fields let the ticket system route the case and let the human act at 
 
 ### Multi-concern requests
 
-Customers often raise several issues at once: "I was double-charged, I want a cheaper plan, and update my address." Treat these as separate concerns. List them, then handle them **in sequence**, applying each one's prerequisites (verification once, refund limit per case, plan rules per change). Report the outcome of each one. If one concern needs a human, the agent can still resolve the others and then hand off only what remains, with a summary that says which concerns are already done.`,
+Customers often raise several issues at once: "I was double-charged, I want a cheaper plan, and update my address." Treat these as separate concerns:
+
+1. **Decompose** the message into distinct items.
+2. **Investigate them in parallel** using shared context: verify the customer once, then issue the independent lookups for every concern together (several tool calls in one turn), all keyed to the same verified customer and account.
+3. **Synthesize one unified resolution**: a single reply that addresses every concern, checks cross-concern effects (two credits counted against one case cap; a plan change that alters the disputed charge), and states the outcome of each.
+
+Actions that move money or change the account still pass their own gates. If one concern needs a human, the agent can still resolve the others and then hand off only what remains, with a summary that says which concerns are already done.`,
     example: {
       intro:
         'A Python PreToolUse hook that gates refunds for the Lumen Mobile support agent, followed by the handoff summary the agent produces when one concern exceeds its refund limit.',
@@ -856,6 +863,8 @@ options = ClaudeAgentOptions(
     { "id": 3, "summary": "Disputes 310.00 USD device-protection charges since March",
       "status": "open", "action": "none; amount exceeds agent refund limit" }
   ],
+  "root_cause": "Device-protection add-on billed monthly since March; no opt-in record found in the order history",
+  "refund_amount_requested": 310.00,
   "escalation_reason": "Requested refund above the 150 USD per-case agent limit",
   "recommended_action": "Review device-protection enrollment date; if the customer never opted in, refund 310.00 USD and remove the add-on.",
   "customer_expectation": "Told a specialist will reply within 1 business day"
@@ -866,7 +875,7 @@ options = ClaudeAgentOptions(
 2. Verification is checked against state the **backend** recorded, keyed by case and customer, not against what Claude says or what the conversation contains. A customer who claims "I already verified earlier" cannot talk past it.
 3. A denial carries a reason written for Claude: what is missing and what to do. Claude receives it and can call \`get_customer\` or escalate instead of retrying blindly.
 4. The same hook enforces the 150 USD per-case cap using a running total, so splitting one large refund into several small ones does not get around it.
-5. The handoff covers a three-concern conversation. Concerns 1 and 2 were handled in sequence after one verification and are marked resolved, with reference IDs. Only concern 3 is open. The human sees who the customer is, that identity is verified, what has already been refunded, why the case escalated, and what to do next, without opening the transcript.`,
+5. The handoff covers a three-concern conversation. After one verification, the agent looked up all three concerns in parallel, resolved concerns 1 and 2 (marked resolved, with reference IDs), and found the root cause of concern 3. Only concern 3 is open. The human sees who the customer is, that identity is verified, the root cause, the amount at stake, what has already been refunded, why the case escalated, and what to do next. They never need the transcript, which their queue tool cannot show anyway.`,
     },
     compare: {
       question: 'How should the agent ensure identity is verified before account changes?',
@@ -946,25 +955,26 @@ options = ClaudeAgentOptions(
         id: '1.4-c3',
         stem: 'A customer asks, in one message, for a duplicate-charge refund, a plan downgrade, and an address change. How should the agent proceed?',
         options: [
-          { id: 'a', text: 'List the three concerns, verify identity once, handle each in sequence with its own checks, and report each outcome' },
+          { id: 'a', text: 'Split it into three concerns, verify identity once, look up all three in parallel for that customer, then send one reply covering each outcome' },
           { id: 'b', text: 'Handle only the first concern and ask the customer to open new chats for the others' },
           { id: 'c', text: 'Escalate the whole conversation because it contains more than one issue' },
           { id: 'd', text: 'Call issue_refund, change_plan, and the address update in parallel before verifying' },
         ],
         correct: 'a',
-        why: 'Decomposing the request keeps each concern\'s prerequisites intact and gives the customer a clear status for each, without escalating issues the agent can resolve.',
+        why: 'Decomposing the request and investigating the concerns in parallel with shared context (one verified customer) is fast, keeps each action\'s gates intact, and ends in one unified resolution without escalating issues the agent can resolve.',
       },
     ],
     review: [
       { front: 'Prompt instruction or hook: "never refund an unverified customer"?', back: 'Hook or code gate (and ideally a backend check). One violation is costly, so it must hold every time.' },
       { front: 'When is prompt-only guidance acceptable?', back: 'When a miss is cheap and recoverable: tone, ordering of read-only lookups, and similar preferences.' },
-      { front: 'Core fields of a handoff summary?', back: 'Customer ID, verification status, concerns with status, actions taken with references, escalation reason, recommended next action.' },
+      { front: 'Core fields of a handoff summary?', back: 'Customer ID, verification status, root cause, amount at issue, concerns with status, actions taken with references, escalation reason, recommended next action. Assume the human cannot see the transcript.' },
+      { front: 'How should the agent handle one message with three separate problems?', back: 'Decompose into distinct items, investigate them in parallel using shared context (one verified customer), then synthesize one unified reply that covers each item.' },
     ],
     sources: ['guide-d1', 'sdk-hooks', 'sdk-permissions', 'sdk-mcp', 'eng-building-agents'],
     notes: [
       {
-        date: '2026-11-20',
-        text: 'The hook example uses the Python Agent SDK shape as the author understands it: `HookMatcher`, a callback taking `(input_data, tool_use_id, context)`, and a `hookSpecificOutput` with `permissionDecision: "deny"`. The `mcp__<server>__<tool>` naming applies to tools served over MCP. Field names and return shapes may differ between SDK versions. Verify against current docs.',
+        date: '2026-11-21',
+        text: 'The exam guide confirms the pattern (programmatic prerequisites and hooks that block downstream tool calls). The hook example uses the Python Agent SDK shape as the author understands it: `HookMatcher`, a callback taking `(input_data, tool_use_id, context)`, and a `hookSpecificOutput` with `permissionDecision: "deny"`. The `mcp__<server>__<tool>` naming applies to tools served over MCP. Field names and return shapes may differ between SDK versions. Verify against current docs.',
       },
     ],
   },

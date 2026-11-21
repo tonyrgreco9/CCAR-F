@@ -496,14 +496,15 @@ e2 is redundant: it repeats a case already handled. e4 is actively harmful, beca
       { term: 'Escape-hatch enum values', definition: 'Enum options such as `"other"` (paired with a free-text detail field) and `"unclear"` that let the model avoid forcing a bad fit.' },
     ],
     learningPoints: [
-      'Use a tool with an input_schema (or structured outputs) to get output that always parses and matches the schema shape.',
-      'Explain why schema conformance does not prevent semantic errors such as fabricated values for required fields.',
-      'Choose between tool_choice auto, any, and a forced named tool for a given pipeline.',
-      'Model possibly-absent values as nullable (or optional) instead of required strings, so absence can be stated honestly.',
-      'Design enums with "other" plus a detail field and an "unclear" value instead of forcing a fit.',
-      'Keep semantic validation in code after the structured call.',
+      'Define an extraction tool whose JSON schema is its input parameters and read the record from the tool_use block: the most reliable route to schema-compliant output with no JSON syntax errors.',
+      'Distinguish tool_choice "auto" (the model may answer in text instead), "any" (must call a tool, chooses which), and a forced named tool (must call that one).',
+      'Use "any" when several extraction schemas exist and the document type is unknown; force a specific tool such as extract_metadata when that extraction must run before enrichment steps.',
+      'Explain why strict schemas remove syntax errors but not semantic ones (line items that do not sum to the total, values in the wrong field).',
+      'Decide required vs optional, and make fields nullable when the source may not contain them, so the model is not pushed to fabricate a value.',
+      'Add "unclear" for ambiguous cases and "other" plus a detail string for categories the enum does not list.',
+      'Put format normalization rules in the prompt alongside the strict schema to cope with inconsistently formatted sources.',
     ],
-    concept: `Asking a model to "return JSON" in plain text works most of the time, and "most of the time" breaks parsers. Defining a **tool** whose \`input_schema\` describes the record you want, and requiring Claude to call it, gives you a \`tool_use\` block whose \`input\` is already a JSON object in that shape. Structured outputs (schema-constrained responses) go further by constraining generation to the schema. Either way, **syntax errors stop being your problem.**
+    concept: `Asking a model to "return JSON" in plain text works most of the time, and "most of the time" breaks parsers. Defining a **tool** whose \`input_schema\` describes the record you want, and requiring Claude to call it, is the most reliable way to get schema-compliant output: the response contains a \`tool_use\` block whose \`input\` is already a JSON object in that shape, and your code reads the record from there. Strict, schema-constrained modes push this further. Either way, **JSON syntax errors stop being your problem.**
 
 ### What a schema cannot do
 
@@ -530,9 +531,13 @@ An enum like \`["net_30", "net_60", "due_on_receipt"]\` forces "Net 45" into the
 
 ### tool_choice
 
-- \`{"type": "auto"}\`: the model may answer in text or call a tool. Right for conversational agents.
-- \`{"type": "any"}\`: must call *a* tool, model picks which. Useful when several extraction tools exist (one per document type) and the model should classify and extract in one step.
-- \`{"type": "tool", "name": "record_invoice"}\`: must call *this* tool. Right when every input should yield exactly this record.
+- \`{"type": "auto"}\`: the model may call a tool **or reply in plain text instead**. Right for conversational agents; risky for a pipeline that must always get a record.
+- \`{"type": "any"}\`: must call *a* tool, model picks which. Use it when several extraction schemas exist (one per document type) and the type of the incoming document is unknown: you are guaranteed structured output, and the model classifies by choosing the tool.
+- \`{"type": "tool", "name": "record_invoice"}\`: must call *this* tool. Right when every input should yield exactly this record, or when one step must run before others. For example, force \`extract_metadata\` first so later enrichment calls (supplier lookup, currency conversion) always start from extracted metadata.
+
+### Normalization rules belong in the prompt too
+
+A schema can say \`"invoice_date": {"type": "string"}\`; it cannot know that one supplier prints "14.10.2026", another "Oct 14, 26", and a third "2026/10/14". Put explicit normalization rules in the prompt (or field descriptions) next to the strict schema: "dates as YYYY-MM-DD; amounts as numbers with a period decimal separator, no thousands separators; currency as ISO 4217 code". The schema fixes the shape; the rules make inconsistent source formatting come out the same way.
 
 ### Terminology
 
