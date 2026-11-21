@@ -427,23 +427,23 @@ Summarize the current branch's diff against main in at most five bullets.`,
       'Given a convention and the files it governs, decide between a .claude/rules/ file with a paths: glob, a subdirectory CLAUDE.md, or always-loaded memory, and write the frontmatter.',
     minutes: 15,
     terms: [
-      { term: 'Path-scoped rule', definition: 'A Markdown file in `.claude/rules/` whose YAML frontmatter has a `paths:` list of globs. It loads only when Claude works with files matching one of them.' },
+      { term: 'Path-scoped rule', definition: 'A Markdown file in `.claude/rules/` whose YAML frontmatter has a `paths:` list of globs. It loads only when Claude is editing files matching one of them.' },
       { term: 'Glob', definition: 'A file pattern. `**` matches any number of directories, `*` matches within one name: `**/*.test.ts` matches test files at any depth.' },
       { term: 'Unconditional rule', definition: 'A `.claude/rules/` file without `paths:` frontmatter. It loads every session, like project CLAUDE.md.' },
       { term: 'Directory-bound memory', definition: 'A subdirectory CLAUDE.md. It applies to one subtree, so it cannot express "every test file in every package".' },
     ],
     learningPoints: [
-      'Write .claude/rules/*.md files with paths: glob frontmatter.',
-      'Recognize conventions that cut across many directories (test files, migrations, stories) and scope them by glob.',
-      'Choose a subdirectory CLAUDE.md when the instruction is genuinely bound to one directory tree.',
-      'Explain the token savings of conditional loading compared with always-loaded memory.',
+      'Write .claude/rules/ files whose YAML frontmatter has a paths field of glob patterns (for example paths: ["terraform/**/*"]) so the rule activates conditionally.',
+      'Explain that a path-scoped rule loads only when Claude is editing matching files, which cuts irrelevant context and token usage.',
+      'Use globs to apply conventions by file type regardless of directory, such as **/*.test.tsx for every test file.',
+      'Choose a glob rule over subdirectory CLAUDE.md files when a convention spans files spread across the codebase; keep a directory CLAUDE.md for instructions bound to one tree.',
       'Check globs against real paths so a rule neither misses files nor loads everywhere.',
     ],
     concept: `Some conventions are about **a kind of file**, not a place. "Tests use Vitest, never Jest", "every migration needs a down step", "Storybook stories use CSF3" — these files are scattered across dozens of folders. You could repeat the rule in every folder's CLAUDE.md, or put it in the root file where every session pays for it. Path-specific rules give you a third choice: write the rule once and have it load **only when Claude works with matching files**.
 
 ### How it works
 
-Create a Markdown file in \`.claude/rules/\` and add YAML frontmatter with a \`paths:\` list:
+Create a Markdown file in \`.claude/rules/\` and add YAML frontmatter with a \`paths:\` field holding glob patterns. A one-directory scope looks like \`paths: ["terraform/**/*"]\`; a by-type scope that ignores directories looks like this:
 
 ${F}markdown
 ---
@@ -455,13 +455,13 @@ paths:
 - Use Vitest (\`describe\`, \`it\`, \`expect\` from 'vitest').
 ${F}
 
-When Claude reads or works on \`services/api/src/billing/invoice.test.ts\` or \`apps/web/src/Button.test.tsx\`, the rule is loaded. In a session that only touches Terraform, it never enters context.
+When Claude is editing \`services/api/src/billing/invoice.test.ts\` or \`apps/web/src/Button.test.tsx\`, the rule is loaded. In a session that only touches Terraform, it never enters context, so it costs no tokens and cannot distract from the task.
 
 A rules file **without** \`paths:\` is unconditional and behaves like project memory. Both kinds are committed and shared.
 
 ### Choosing between rules and directory files
 
-- **Path-scoped rule** — the convention follows a *file pattern* that spans many directories: \`**/*.test.ts\`, \`**/migrations/*.sql\`, \`**/*.stories.tsx\`. One file, one owner, no duplication.
+- **Path-scoped rule** — the convention follows a *file pattern* that spans many directories: \`**/*.test.ts\`, \`**/migrations/*.sql\`, \`**/*.stories.tsx\`. One file, one owner, no duplication. A directory CLAUDE.md cannot do this, because it is bound to one subtree: test files that sit beside their source in forty folders would need forty copies.
 - **Subdirectory CLAUDE.md** — the instruction is about *one place*: "in \`infra/\`, never apply". It loads when Claude works in that subtree and is easy to find next to the code.
 - **Project CLAUDE.md / unconditional rule** — it applies to nearly every task.
 
@@ -515,7 +515,7 @@ paths:
           code: `Task: "fix the flaky test in apps/web/src/Calendar.test.tsx"
   loaded: CLAUDE.md, rules/testing.md
 Task: "add a cancelled_at column in services/api"
-  loaded: CLAUDE.md, rules/migrations.md (once Claude works in services/api/migrations/)
+  loaded: CLAUDE.md, rules/migrations.md (once Claude edits a file in services/api/migrations/)
 Task: "update the RDS instance size"
   loaded: CLAUDE.md, infra/CLAUDE.md`,
         },
@@ -607,7 +607,7 @@ Task: "update the RDS instance size"
     ],
     sources: ['guide-d3', 'cc-memory', 'app-authored'],
     notes: [
-      { date: NOTE_DATE, text: 'Path-scoped rules in `.claude/rules/` are a relatively recent Claude Code feature. The exact trigger (reading a matching file versus creating or editing one), supported glob syntax such as brace expansion, and whether user-level `~/.claude/rules/` is supported may differ by version. Verify against the current Memory docs.' },
+      { date: NOTE_DATE, text: 'The exam guide describes path-scoped rules as loading when Claude is editing matching files, which is how this lesson states it. In current Claude Code, merely reading a matching file may also trigger a rule, and supported glob syntax (such as brace expansion) and user-level `~/.claude/rules/` may differ by version. Check the current Memory docs for those details.' },
     ],
   },
 
@@ -627,11 +627,12 @@ Task: "update the RDS instance size"
       { term: 'Plan-then-execute', definition: 'Approve a plan from plan mode, then switch to normal (or auto-accept edits) mode to carry it out.' },
     ],
     learningPoints: [
-      'Identify tasks that warrant plan mode: multi-file, architectural, risky, or ambiguous changes.',
-      'Identify tasks suited to direct execution: small, clear, well-scoped changes with an obvious verification.',
-      'Use an Explore subagent to keep verbose discovery from filling the main context.',
-      'Combine plan mode and execution: review and correct the plan before any edits, then execute.',
-      'Recognize the costs of over-planning trivial work and of under-planning wide changes.',
+      'Recognize what plan mode is for: large-scale changes, multiple valid approaches, architectural decisions, and multi-file modifications.',
+      'Select plan mode for tasks with architectural implications, such as microservice restructuring, a library migration touching 45+ files, or choosing between integration approaches with different infrastructure needs.',
+      'Explain how plan mode\'s safe exploration and design before any change prevents costly rework.',
+      'Select direct execution for simple, well-scoped changes, such as a single-file bug fix with a clear stack trace or adding one date validation check.',
+      'Use the Explore subagent to isolate verbose discovery and return a summary, preventing context window exhaustion in multi-phase tasks.',
+      'Combine plan mode for investigation with direct execution for implementation, for example planning a library migration and then executing the plan.',
     ],
     concept: `Before Claude edits anything, decide **how much thinking should happen before the first change**. Claude Code gives you three tools for that decision.
 
@@ -645,20 +646,25 @@ An **Explore subagent** is a read-only helper with its own context window. It do
 
 Use plan mode when a wrong first step is expensive:
 
-- the change touches **many files** or crosses services (renaming a domain concept, changing an API contract);
-- it is **architectural** (introducing a queue, splitting a module, changing auth);
+- the change is **large-scale** and touches **many files** or crosses services (a library migration affecting 45 or more files, renaming a domain concept, changing an API contract);
+- it is **architectural** (restructuring into microservices, introducing a queue, splitting a module, changing auth);
+- there are **multiple valid approaches**, for example two integration designs with different infrastructure requirements, and someone has to choose;
 - the request is **ambiguous** and you need to see Claude's interpretation before it acts;
 - the area is **unfamiliar** and the approach is not obvious.
 
-The plan is cheap to fix; a half-finished, 30-file edit in the wrong direction is not.
+Plan mode lets Claude explore the codebase safely and design the change **before committing to it**. The plan is cheap to fix; a half-finished, 30-file edit in the wrong direction is costly rework.
 
 ### When to execute directly
 
-Use direct execution when the task is **clear and scoped**: fix a typo, add a field to one form, update a dependency with a known changelog, fix a bug with an obvious stack trace and a test to prove it. Planning these adds review overhead without reducing risk.
+Use direct execution when the task is **simple and well scoped**: add a single validation check to one function (say, rejecting an end date before the start date), fix a typo, fix a single-file bug with a clear stack trace and a test to prove it. Planning these adds review overhead without reducing risk.
 
 ### Combining them
 
-Large work usually runs as a sequence: delegate discovery to an Explore subagent ("find every place that reads appointment status"), enter plan mode and ask for a plan based on that summary, review and correct it, then leave plan mode and execute step by step, running tests after each step. For long efforts, ask Claude to write the plan to a file so it survives \`/compact\` or a new session.`,
+Large work usually runs as a sequence: delegate discovery to an Explore subagent ("find every place that reads appointment status"), enter plan mode and ask for a plan based on that summary, review and correct it, then leave plan mode and execute the planned approach directly, step by step, running tests after each step. A library migration is the classic case: plan mode to investigate call sites and agree the approach, direct execution to carry it out. For long efforts, ask Claude to write the plan to a file so it survives \`/compact\` or a new session.
+
+### Why the Explore subagent matters in multi-phase work
+
+Discovery output is large: hundreds of search hits and dozens of files read. If it all lands in the main conversation during phase one, there is little context left for planning and implementing in phases two and three. The Explore subagent does that reading in its own context window and returns only a summary, so the main session keeps its room for the later phases.`,
     example: {
       intro:
         'Two requests arrive at Tidewater on the same morning. One is planned; the other is executed directly.',
@@ -784,7 +790,7 @@ Risks: notify service filter; analytics views. Verify: full test suite + view di
     ],
     sources: ['guide-d3', 'cc-workflows', 'cc-subagents', 'cc-best-practices'],
     notes: [
-      { date: NOTE_DATE, text: 'How to enter plan mode (the Shift+Tab permission-mode cycle, `--permission-mode plan`, or a slash command in some versions), and the built-in Explore subagent\'s name, model, and tool set, vary by Claude Code version. Verify against current docs.' },
+      { date: NOTE_DATE, text: 'The exam guide confirms plan mode and the Explore subagent as taught here. How you enter plan mode (the Shift+Tab permission-mode cycle, `--permission-mode plan`, or a slash command in some versions) and the Explore subagent\'s model and tool set vary by Claude Code version; check current docs for the controls.' },
     ],
   },
 
@@ -804,36 +810,36 @@ Risks: notify service filter; analytics views. Verify: full test suite + view di
       { term: 'Batched feedback', definition: 'Sending several related issues in one message so Claude can fix them together, appropriate when the fixes interact.' },
     ],
     learningPoints: [
-      'Replace vague feedback ("make it better") with concrete input/output examples.',
-      'Use failing tests as the specification and share the actual failure output on each iteration.',
-      'Use the interview pattern when requirements are unclear or have edge cases you have not considered.',
-      'Batch interacting issues in one message; fix independent issues sequentially and verify each.',
+      'Give 2-3 concrete input/output examples when prose descriptions of a transformation are interpreted inconsistently.',
+      'Write a test suite first (expected behavior, edge cases, performance requirements), then iterate by sharing the actual test failures.',
+      'Fix edge-case handling with specific test cases that pair an example input with its expected output, such as null values in a migration script.',
+      'Use the interview pattern so Claude asks questions that surface considerations (cache invalidation, failure modes) before implementing in an unfamiliar domain.',
+      'Put interacting issues in one detailed message; fix independent issues sequentially.',
       'Recognize when to stop iterating in a polluted session and restart with a clearer prompt.',
     ],
     concept: `Claude rarely gets non-trivial work exactly right on the first pass. What decides how fast you converge is the **quality of the feedback** you give between passes. Vague feedback ("that's not quite right", "handle edge cases better") forces Claude to guess what you meant. Concrete feedback removes the guess.
 
 ### Show, do not describe
 
-A short list of **concrete input/output examples** often beats a paragraph of rules. "Format durations nicely" is ambiguous; this is not:
+When a prose description keeps being interpreted differently from one attempt to the next, **concrete input/output examples** are the most effective way to say what the transformation should do. Two or three well-chosen pairs usually settle it. "Format durations nicely" is ambiguous; this is not:
 
 - \`90\` -> \`"1h 30m"\`
 - \`45\` -> \`"45m"\`
-- \`0\` -> \`"0m"\`
 - \`1440\` -> \`"1d"\`
 
-Pick examples that cover the cases you actually care about, especially boundaries.
+Pick examples that cover the cases you actually care about, especially boundaries. The same idea fixes edge cases: if a migration script mishandles missing data, give the specific case, e.g. \`{"phone": null}\` -> \`{"phone_e164": null}\` (not \`"+1null"\`), ideally as a test.
 
 ### Make tests the specification
 
-**Test-driven iteration** turns "correct" into something checkable. Write (or have Claude write) tests that capture the expected behavior, confirm they fail for the right reason, then ask Claude to make them pass without changing the tests. After each attempt, share the **actual failure output** — the assertion, expected vs received values, the stack trace — rather than "still failing". Claude can run the tests itself, which closes the loop without you relaying anything.
+**Test-driven iteration** turns "correct" into something checkable. Write (or have Claude write) the test suite **before** the implementation, covering expected behavior, edge cases, and any performance requirement (for example "deduplicates 100,000 rows in under 2 seconds"). Confirm the tests fail for the right reason, then ask Claude to make them pass without changing the tests. After each attempt, share the **actual failure output** — the assertion, expected vs received values, the stack trace — rather than "still failing". Claude can run the tests itself, which closes the loop without you relaying anything.
 
 ### Interview before building
 
-When the requirements are fuzzy or have edge cases you have not thought about, use the **interview pattern**: "Before writing code, ask me questions about anything unclear in this feature — edge cases, error handling, data sources. Ask until you are confident, then summarize the spec." You answer a handful of questions once, instead of discovering each gap after a wrong implementation.
+When you are working in an unfamiliar domain, or the requirements have considerations you may not have anticipated, use the **interview pattern**: have Claude ask *you* questions before it implements anything. Adding a cache in front of a service you have never cached before? The interview surfaces the cache invalidation strategy, what happens when the cache is down, and how stale data may be, before any of it is decided by accident. A typical prompt: "Before writing code, ask me questions about anything unclear in this feature — edge cases, error handling, data sources. Ask until you are confident, then summarize the spec." You answer a handful of questions once, instead of discovering each gap after a wrong implementation.
 
 ### Batch or sequence?
 
-- **Batch** issues in one message when they **interact**: fixing one changes the right fix for another (timezone handling and DST and the display format of the same date field). Fixing them one at a time causes churn as each fix undoes the last.
+- **Batch** issues in one detailed message when they **interact**: fixing one changes the right fix for another (timezone handling and DST and the display format of the same date field). Fixing them one at a time causes churn as each fix undoes the last.
 - **Fix sequentially** when issues are **independent**: a typo in an error message, a missing log line, a slow query in another module. One at a time, each verified, keeps the diff reviewable and makes regressions obvious.
 
 ### Know when to restart
@@ -990,31 +996,34 @@ at a time. When you have enough, write a short spec and wait for my OK.`,
     terms: [
       { term: 'claude -p', definition: 'Print (non-interactive) mode: runs one prompt to completion and writes the result to stdout, suitable for scripts and CI.' },
       { term: '--output-format json', definition: 'Emit a single JSON object containing the result and run metadata instead of plain text, so a later step can parse it. `stream-json` emits events as they happen.' },
-      { term: '--json-schema', definition: 'In recent versions, constrains the final answer to a supplied JSON Schema so downstream parsers receive a predictable shape.' },
+      { term: '--json-schema', definition: 'Used with `--output-format json`, constrains the final answer to a supplied JSON Schema so downstream scripts receive machine-parseable findings with a predictable shape.' },
       { term: '--allowedTools', definition: 'Tools the run may use without prompting (non-interactive runs cannot answer prompts). Scope them to what the job needs, e.g. Read, Grep, Glob, `Bash(git diff:*)`.' },
       { term: 'Independent review instance', definition: 'A separate Claude Code invocation, with fresh context, that reviews code another session wrote, instead of the authoring session reviewing itself.' },
     ],
     learningPoints: [
-      'Run Claude Code non-interactively with claude -p and bound it with --max-turns.',
-      'Produce machine-readable output with --output-format json and, where supported, a JSON Schema.',
-      'Scope permissions with --allowedTools so the job can do only what it needs.',
-      'Give CI runs project context through committed CLAUDE.md, not ad-hoc prompt text.',
-      'Avoid duplicate PR comments by passing prior findings and asking only for new or unresolved issues.',
-      'Use an independent review instance instead of self-review, and supply secrets from the CI environment.',
+      'Run Claude Code in pipelines with -p (--print) so it runs non-interactively and never hangs waiting for input.',
+      'Combine --output-format json with --json-schema to get machine-parseable, structured findings that a script can post as inline PR comments.',
+      'Use CLAUDE.md to give CI-invoked Claude Code project context: testing standards, valuable test criteria, available fixtures, and review criteria.',
+      'Explain session context isolation: use an independent review instance rather than the session that generated the code.',
+      'On re-runs after new commits, include prior review findings and ask only for new or still-unaddressed issues to avoid duplicate comments.',
+      'Provide existing test files in context so generated tests do not duplicate scenarios the suite already covers.',
+      'Bound and scope unattended runs (--max-turns, --allowedTools) and supply credentials from the CI environment.',
     ],
     concept: `In CI there is no human at the keyboard. Claude Code has to start, do one job, produce output a script can trust, and stop. That changes how you configure it.
 
 ### Run non-interactively
 
-\`claude -p "<prompt>"\` (print mode) runs a single prompt to completion and prints the result. Add \`--max-turns\` as a safety cap so a confused run cannot loop for long. Because nobody can approve a permission prompt, list what the job may use with **\`--allowedTools\`** — for a reviewer, read-only tools like Read, Grep, Glob, and narrowly scoped commands such as \`Bash(git diff:*)\`. Leave write tools out unless the job must change files.
+\`claude -p "<prompt>"\` (also \`--print\`) runs a single prompt non-interactively: it processes the prompt, prints the result to stdout, and exits. Without it, \`claude "<prompt>"\` opens the interactive interface and waits for the next message, so a CI job simply hangs until it times out. Add \`--max-turns\` as a safety cap so a confused run cannot loop for long. Because nobody can approve a permission prompt, list what the job may use with **\`--allowedTools\`** — for a reviewer, read-only tools like Read, Grep, Glob, and narrowly scoped commands such as \`Bash(git diff:*)\`. Leave write tools out unless the job must change files.
 
 ### Make output machine-readable
 
-Plain text breaks parsers. \`--output-format json\` returns one JSON object with the final result and metadata (session ID, cost, turns). For findings that feed PR comments or a merge gate, constrain the answer itself to a **JSON Schema** (\`--json-schema\` in recent versions): a findings array with file, line, severity, and message. A schema guarantees shape, not truth, so the job should still validate values (does the file exist in the diff? is the line in range?).
+Plain text breaks parsers. \`--output-format json\` returns one JSON object with the final result and metadata (session ID, cost, turns). For findings that feed PR comments or a merge gate, also pass **\`--json-schema\`** to constrain the answer itself to a schema: a findings array with file, line, severity, and message that a script can turn directly into inline PR comments. A schema guarantees shape, not truth, so the job should still validate values (does the file exist in the diff? is the line in range?).
 
 ### Give the run project context
 
-The CI run reads the repository's **CLAUDE.md** just like an interactive session. Put review standards there (what counts as a blocking issue, what to ignore, test commands) so CI and engineers apply the same rules, and so the prompt stays short.
+The CI run reads the repository's **CLAUDE.md** just like an interactive session, which makes it the mechanism for giving CI runs project context. Put review criteria there (what counts as a blocking issue, what to ignore, test commands) so CI and engineers apply the same rules and the prompt stays short.
+
+For **test generation**, CLAUDE.md should document the testing standards, what makes a test valuable here (behavior and edge cases, not getters or framework internals), and the available fixtures and factories. Without that, generated tests tend to be low value: trivial assertions, hand-built fixtures, real network calls. Also put the **existing test files** for the code under change into context, so Claude can see which scenarios are already covered and suggests only the missing ones instead of duplicates.
 
 ### Avoid duplicate comments
 
@@ -1022,7 +1031,7 @@ Each push re-runs the job. If the new run knows nothing about the last one, it r
 
 ### Review independently
 
-A session that just wrote code tends to accept its own reasoning. Review with a **separate instance** — a new \`claude -p\` invocation with fresh context, given the diff and the standards — not by asking the authoring session to check its own work.
+A session that just wrote code carries the reasoning and assumptions that produced it, so it tends to accept its own work; this is why **session context isolation** matters. Review with a **separate instance** — a new \`claude -p\` invocation with fresh context, given the diff and the standards — not by asking the authoring session to check its own work.
 
 ### Keep secrets in the CI system
 
@@ -1113,7 +1122,27 @@ jobs:
 - Blocking: security issues, data loss, broken public API, missing tests for new logic.
 - Warning: error handling gaps, performance regressions with evidence.
 - Do not report formatting or naming preferences; the linter owns those.
-- Tests: \`pnpm test\`. Type check: \`pnpm typecheck\`.`,
+- Tests: \`pnpm test\`. Type check: \`pnpm typecheck\`.
+
+## Testing standards (used when generating tests)
+- Valuable tests cover behavior and edge cases (empty, null, boundary dates);
+  do not write tests for getters, constructors, or framework code.
+- Build data with the factories in test/factories (makeUser, makeOrder).
+- Never call real services; use the shared mockServer fixture.`,
+        },
+        {
+          lang: 'bash',
+          caption: 'Test-suggestion step: existing tests for the changed files go into context',
+          code: `# For each changed source file, find its colocated test file (if any).
+git diff --name-only "origin/$BASE...HEAD" -- 'src/**/*.ts' \\
+  | sed 's/\\.ts$/.test.ts/' | xargs ls 2>/dev/null > existing-tests.txt
+
+claude -p "Suggest missing tests for the changes in pr.diff, following the
+testing standards in CLAUDE.md. The existing test files are listed in
+existing-tests.txt; read them first and do not suggest scenarios they
+already cover." \\
+  --output-format json --json-schema "$(cat .claude/testgen-schema.json)" \\
+  --allowedTools "Read" "Grep" "Glob" --max-turns 15 > suggestions.json`,
         },
       ],
       walkthrough: `1. **Non-interactive and bounded.** \`claude -p\` runs once; \`--max-turns 20\` caps the run.
@@ -1121,7 +1150,8 @@ jobs:
 3. **Parseable output.** \`--output-format json\` wraps the run in a JSON object, and the schema fixes the shape of the findings so \`post-review.mjs\` does not break on prose. The script still checks that each \`file\` and \`line\` is in the diff before posting.
 4. **No duplicates.** \`prior-findings.mjs\` collects the bot's earlier findings; the prompt tells Claude to report only new or still-present issues and to list fixed ones as resolved. The posting script updates or resolves existing comments rather than adding copies.
 5. **Shared context.** Severity definitions and "don't report style" live in CLAUDE.md, so CI and local sessions apply the same standards and the prompt stays short.
-6. **Independent and secret-safe.** This job is a separate instance from whatever session wrote the code. The API key comes from \`secrets.ANTHROPIC_API_KEY\` as an environment variable, never from the repo.`,
+6. **Independent and secret-safe.** This job is a separate instance from whatever session wrote the code. The API key comes from \`secrets.ANTHROPIC_API_KEY\` as an environment variable, never from the repo.
+7. **Test suggestions that add value.** The testing-standards section tells CI what a valuable test is and which factories and fixtures exist, and the suggestion step reads the existing tests for the changed files first, so it proposes only uncovered scenarios instead of re-suggesting ones the suite already has.`,
     },
     compare: {
       question: 'Who should review a change that Claude Code generated in an earlier step of the pipeline?',
@@ -1202,6 +1232,18 @@ ${F}`,
         why: 'Giving the run its prior findings lets it distinguish new, still-present, and resolved issues, removing duplicates without losing coverage of later pushes.',
       },
       {
+        id: '3.6-c4',
+        stem: 'A pipeline step runs `claude "Summarize this diff"` and the job sits until its timeout. What change lets the step finish?',
+        options: [
+          { id: 'a', text: 'Add --max-turns 5' },
+          { id: 'b', text: 'Add --output-format json' },
+          { id: 'c', text: 'Run claude -p "Summarize this diff" so it prints the result and exits' },
+          { id: 'd', text: 'Move the prompt into CLAUDE.md' },
+        ],
+        correct: 'c',
+        why: 'Without -p the command starts an interactive session that waits for input. Print mode runs the prompt non-interactively and exits; turn caps and output formats do not change that.',
+      },
+      {
         id: '3.6-c3',
         stem: 'Where should the Anthropic API key for a CI review job come from?',
         options: [
@@ -1221,7 +1263,7 @@ ${F}`,
     ],
     sources: ['guide-d3', 'cc-headless', 'cc-cli-reference', 'cc-github-actions', 'cc-memory'],
     notes: [
-      { date: NOTE_DATE, text: '`--json-schema` exists only in recent Claude Code versions, and the field that holds schema-constrained output inside the `--output-format json` object (for example `structured_output` alongside `result`) may differ by version. How `--allowedTools` accepts multiple values (space- or comma-separated) has also varied. Verify against the current CLI reference.' },
+      { date: NOTE_DATE, text: 'The exam guide confirms `-p`/`--print`, `--output-format json`, and `--json-schema` as taught here. The field that holds schema-constrained output inside the JSON object (for example `structured_output` alongside `result`) and how `--allowedTools` accepts multiple values (space- or comma-separated) may differ by version; check the current CLI reference before writing a parser.' },
       { date: NOTE_DATE, text: 'Anthropic also publishes a GitHub Action for Claude Code that wraps much of this setup. Its inputs and version tags change over time; check the current GitHub Actions docs before copying a workflow.' },
     ],
   },

@@ -492,7 +492,7 @@ export const questions: Question[] = [
     options: [
       {
         id: 'a',
-        text: 'For write statements, return `isError: true` with a `permission` category, `retryable: false`, and a note that the replica is read-only and changes go through a reviewed migration.',
+        text: 'For write statements, return `isError: true` with a `permission` category, `isRetryable: false`, and a note that the replica is read-only and changes go through a reviewed migration.',
         correct: true,
         whyItWorks: 'Marking the failure as a non-retryable permission error tells the agent that rewriting the SQL cannot help, and the guidance redirects it to drafting a migration script, which stops the five-retry loop.',
         supportingClue: 'The agent retries a failed UPDATE five times with rewritten SQL against a read-only replica.',
@@ -517,7 +517,7 @@ export const questions: Question[] = [
       },
       {
         id: 'd',
-        text: 'For statement timeouts, return `isError: true` with a `transient` category, `retryable: true`, and a hint to narrow the time range or filter on an indexed column.',
+        text: 'For statement timeouts, return `isError: true` with a `transient` category, `isRetryable: true`, and a hint to narrow the time range or filter on an indexed column.',
         correct: true,
         whyItWorks: 'Flagging the timeout as an error, not an empty result, stops the agent from claiming the data does not exist, and the retry hint gives it a concrete way to reformulate the heavy aggregate query.',
         supportingClue: 'After 30-second timeouts the agent tells the engineer that the data does not exist.',

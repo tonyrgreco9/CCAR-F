@@ -835,7 +835,7 @@ Observed: agent answers "who calls computeRate?" with Grep on this checkout, ign
     id: '2.5',
     title: 'Using Read, Write, Edit, Bash, Grep, and Glob effectively',
     outcome:
-      'Given a code-navigation or editing task in Claude Code, pick the built-in tool for each step, explore incrementally from Grep hits instead of reading whole directories, and recover when an Edit anchor is not unique.',
+      'Given a code-navigation or editing task in Claude Code, pick the built-in tool for each step, explore incrementally from Grep hits instead of reading whole directories, trace usage through wrapper modules, and fall back to Read + Write when an Edit anchor is not unique.',
     minutes: 25,
     terms: [
       { term: 'Grep', definition: 'Built-in tool that searches file contents with a regular expression and returns matching files or lines.' },
@@ -844,27 +844,28 @@ Observed: agent answers "who calls computeRate?" with Grep on this checkout, ign
       { term: 'Incremental exploration', definition: 'Finding entry points with search, reading only the relevant files or ranges, then following imports and call sites step by step.' },
     ],
     learningPoints: [
-      'Choose Grep for content search and Glob for path patterns, and Read, Edit, Write, or Bash for the remaining steps.',
-      'Explore a large codebase incrementally: search for entry points, read targeted files, follow imports and call sites.',
-      'Trace a function\'s real usage through wrapper or re-export modules rather than stopping at the first match.',
-      'Apply Edit correctly: exact, unique anchor; when it is not unique, read more context and extend the anchor, or rewrite with Write when appropriate.',
+      'Select Grep to search file contents (callers of a function, error messages, import statements) and Glob to find files by name or extension pattern (e.g. **/*.test.tsx).',
+      'Use Read and Write for whole-file operations and Edit for targeted changes anchored on unique text.',
+      'When Edit fails because its anchor text is not unique, Read the full file and Write the modified contents as a reliable fallback.',
+      'Build understanding incrementally: Grep for entry points, then Read to follow imports and trace flows, instead of reading every file up front.',
+      'Trace a function through wrapper modules by first listing every name the wrapper exports, then searching the codebase for each name.',
       'Recognize when Bash is the right tool (builds, tests, git) and when a dedicated tool is better.',
     ],
     concept: `Claude Code gives the agent a small set of built-in tools, each with a job. Choosing the right one keeps context small and actions safe.
 
-- **Grep** searches **inside** files for a pattern: "where is \`calculateTax\` called?"
-- **Glob** finds files by **path pattern**: "which files match \`**/*.controller.ts\`?" It never reads contents.
-- **Read** shows a file's contents, optionally a line range (offset/limit) for large files.
-- **Edit** replaces one exact string in a file with another; **Write** creates a file or replaces all of its contents.
+- **Grep** searches **inside** files for a pattern: every caller of \`calculateTax\`, where an error message like "card declined" is raised, which files import \`@acme/http\`.
+- **Glob** finds files by **path pattern**: "which files match \`**/*.test.tsx\` or \`**/*.controller.ts\`?" It never reads contents.
+- **Read** loads a file's full contents (optionally a line range for large files); **Write** creates a file or replaces all of its contents. Together they are the whole-file operations.
+- **Edit** makes a targeted change: it replaces one exact, **unique** string with another and leaves the rest of the file alone.
 - **Bash** runs commands: tests, builds, git, package managers.
 
 A common confusion is Grep vs. Glob. If the question is about *what code says*, use Grep. If it is about *file names or locations*, use Glob.
 
 **Explore incrementally.** In a large repo, reading every file in a directory fills the context with noise and pushes out what matters. Instead: Grep for an entry point (a route string, an error message, a function name), Read the file that contains it, note what it imports or calls, and Grep or Read the next hop. Each step is chosen from what you just learned.
 
-**Follow wrappers.** Codebases often wrap functions: \`legacyClient.charge\` is re-exported from \`payments/index.ts\`, renamed in \`billing/adapter.ts\`, and called as \`chargeCard\` elsewhere. Grepping only the original name misses callers that use the wrapper. Find where the function is imported and re-exported, then Grep for the new names too.
+**Follow wrappers.** Codebases often wrap functions: \`legacyClient.charge\` is re-exported from \`payments/index.ts\` as \`refundPayment\`, wrapped again in \`billing/adapter.ts\` as \`creditCustomer\`, and callers only ever use the new names. Grepping only the original name misses them. The reliable method is to **first identify every name the wrapper module exports** (Read its export list), then **Grep for each of those names** across the codebase, and repeat for any further wrapper you find.
 
-**Edit needs a unique anchor.** Edit matches \`old_string\` exactly, whitespace included, and fails if the text is not found or appears more than once. The agent must have Read the file in the session first. When an anchor is ambiguous (two identical \`return null;\` lines), Read the surrounding lines and extend the anchor with distinctive context, such as the function signature. If you are intentionally rewriting most of the file, or creating it, use **Write**. Edit is preferable for targeted changes because it touches only what you specify.
+**Edit needs a unique anchor.** Edit matches \`old_string\` exactly, whitespace included, and fails if the text is not found or appears more than once. The agent must have Read the file in the session first. When Edit fails because the text is **not unique** (two identical \`return null;\` lines), the reliable fallback is **Read + Write**: Read the full current file, make the one change in the full contents, and Write the whole file back. Reading first matters: writing from memory or a stale copy silently drops other people's changes. If a short distinctive neighbour (a function signature) obviously makes the anchor unique, extending the anchor and retrying Edit is a lighter alternative; when it does not, or a retry still matches twice, use Read + Write rather than guessing.
 
 **Bash** is for actions without a dedicated tool. Using \`cat\`, \`find\`, or \`grep\` through Bash works but bypasses the purpose-built tools, which are typically easier to permission and produce more manageable output.
 
@@ -873,9 +874,10 @@ A common confusion is Grep vs. Glob. If the question is about *what code says*, 
 - **Content search**: Grep.
 - **Path matching**: Glob.
 - **Anchor**: Edit's unique \`old_string\`.
+- **Read + Write fallback**: reload the whole file, then write the full modified contents.
 - **Entry point**: the first relevant hit you expand from.`,
     example: {
-      intro: 'An engineer asks: "Which code paths can trigger a refund without an approval check?" The trace below shows incremental exploration through a wrapper module, then an Edit that first fails on a non-unique anchor.',
+      intro: 'An engineer asks: "Which code paths can trigger a refund without an approval check?" The trace below shows incremental exploration through wrapper modules, then an Edit that fails on a non-unique anchor and the Read + Write fallback.',
       artifacts: [
         {
           lang: 'text',
@@ -883,10 +885,11 @@ A common confusion is Grep vs. Glob. If the question is about *what code says*, 
           code: `1  Grep  pattern="issueRefund"  output=files
    -> src/payments/refunds.ts, src/payments/index.ts, src/billing/adapter.ts
 
-2  Read  src/payments/index.ts
+2  Read  src/payments/index.ts          (wrapper: list everything it exports)
    -> export { issueRefund as refundPayment } from './refunds';
+   -> export { issueRefund as legacyRefund } from './refunds';   // deprecated alias
 
-3  Grep  pattern="refundPayment|issueRefund"  path=src  output=content
+3  Grep  pattern="refundPayment|legacyRefund|issueRefund"  path=src  output=content
    -> src/billing/adapter.ts:14     import { refundPayment } from '../payments';
    -> src/billing/adapter.ts:41     export const creditCustomer = (c, amt) => refundPayment(c, amt);
    -> src/support/handlers.ts:88    await refundPayment(ticket.customerId, amount);
@@ -903,45 +906,48 @@ A common confusion is Grep vs. Glob. If the question is about *what code says*, 
         },
         {
           lang: 'text',
-          caption: 'Edit fails on a non-unique anchor, then succeeds',
+          caption: 'Edit fails on a non-unique anchor; Read + Write fallback',
           code: `Edit  file=src/jobs/reconcile.ts
       old_string="    await creditCustomer(row.customer, row.delta);"
 -> Error: old_string matches 2 locations. Provide more context or set replace_all.
 
-Read  src/jobs/reconcile.ts  offset=50 limit=30
+Read  src/jobs/reconcile.ts               (full file, 96 lines, current version)
 -> line 57 is inside applyNegativeDelta(); line 71 is inside applyManualAdjustment()
 
-Edit  file=src/jobs/reconcile.ts
-      old_string="function applyNegativeDelta(row: ReconRow) {\\n    await creditCustomer(row.customer, row.delta);"
-      new_string="function applyNegativeDelta(row: ReconRow) {\\n    await requireApproval(row.customer, row.delta);\\n    await creditCustomer(row.customer, row.delta);"
--> OK`,
+Write file=src/jobs/reconcile.ts
+      content=<the 96 lines just read, with one added line before line 57:
+               "    await requireApproval(row.customer, row.delta);">
+-> OK
+
+Bash  git diff --stat src/jobs/reconcile.ts
+-> 1 file changed, 1 insertion(+)`,
         },
       ],
-      walkthrough: `Step 1 uses **Grep** because the question is about code content. Instead of reading all three hits, step 2 **Reads** only the index file, which reveals a **re-export under a new name** (\`refundPayment\`). Step 3 searches for both names and finds a second wrapper, \`creditCustomer\`, in the billing adapter. Step 4 follows that wrapper to two more callers that a search for \`issueRefund\` alone would never have found. Step 5 Reads just the relevant range of \`reconcile.ts\`. Step 6 uses **Glob**, because now the question is about file paths: does a test file exist?
+      walkthrough: `Step 1 uses **Grep** because the question is about code content. Instead of reading all three hits, step 2 **Reads** only the index file to list **every name it exports**: two aliases (\`refundPayment\`, \`legacyRefund\`). Step 3 searches for each exported name and finds a second wrapper, \`creditCustomer\`, in the billing adapter. Step 4 follows that wrapper to two more callers that a search for \`issueRefund\` alone would never have found. Step 5 Reads just the relevant range of \`reconcile.ts\`. Step 6 uses **Glob**, because now the question is about file paths: does a test file exist?
 
-The first **Edit** fails because the same line appears in two functions. The fix is not to guess: Read the surrounding lines, then extend \`old_string\` with the distinctive function signature so it matches exactly once. Only the intended call site changes. Using \`replace_all\` would have changed both call sites, which is wrong here because only one path lacked approval. Rewriting the whole file with Write would also work but risks unintended changes in a long file.
+The first **Edit** fails because the same line appears in two functions. The agent does not guess: it **Reads the full, current file**, applies the single insertion to those contents, and **Writes** the whole file back, then checks with \`git diff\` that exactly one line changed. Using \`replace_all\` would have changed both call sites, which is wrong here because only one path lacked approval. Because the function signature \`applyNegativeDelta(row: ReconRow)\` is unique, extending the Edit anchor to include it would also have worked; Read + Write is the fallback that works even when no such short unique context exists.
 
 Notice what the agent did **not** do: read every file under \`src/payments\` and \`src/billing\`. Seven targeted calls answered the question.`,
     },
     compare: {
-      question: 'An Edit fails because the anchor text appears several times. Extend the anchor, or rewrite the file with Write?',
+      question: 'An Edit fails because the anchor text appears several times. Fall back to Read + Write, or extend the anchor and retry Edit?',
       a: {
-        title: 'Extend the anchor and retry Edit',
-        body: 'Read the area around the intended location and include distinctive neighboring text (function signature, a comment, a unique variable) in `old_string` so it matches exactly once.',
-        chooseWhen: 'The change is targeted, the file is large or shared, and nearby text can make the anchor unique.',
+        title: 'Read + Write fallback',
+        body: 'Read the full current file, apply the change to those contents, and Write the whole file back; then check the diff touches only what you intended.',
+        chooseWhen: 'The duplicated text has no short distinctive neighbour, an extended anchor still matched more than once, or most of the file is changing anyway.',
       },
       b: {
-        title: 'Rewrite the file with Write',
-        body: 'Read the whole file, produce the full new contents, and Write it in one operation.',
-        chooseWhen: 'The file is small or being restructured substantially, so most of its content changes anyway, or no stable unique anchor exists.',
+        title: 'Extend the anchor and retry Edit',
+        body: 'Include distinctive neighbouring text (a unique function signature or comment) in `old_string` so it matches exactly once.',
+        chooseWhen: 'A short, obviously unique line sits right next to the target, so one retry will match exactly once.',
       },
-      decidingDetail: `The deciding detail is **how much of the file changes**. For a targeted change, extend the anchor: Edit touches only what you name, so the rest of the file cannot drift. When most of a small file is being rewritten, a full Write after reading the file is simpler and avoids chaining many fragile edits. Use replace_all only when every occurrence really should change.`,
+      decidingDetail: `The deciding detail is **whether a short unique anchor exists**. Read + Write is the reliable fallback when Edit fails on non-unique text: it works no matter how repetitive the file is, as long as the Write is built from a fresh Read rather than from memory. A one-line anchor extension is a lighter option only when a unique neighbour is obvious. Use replace_all only when every occurrence really should change.`,
     },
     mistake: {
       mistake: 'Starting exploration by reading every file in the relevant directories (or running `cat` over them in Bash) before searching for anything.',
       whyTempting: 'Reading everything feels thorough and avoids the risk of missing something; with a large context window it seems affordable.',
       howToRecognize: 'Dozens of Read calls before the first Grep; context fills with unrelated code; the agent loses earlier details, needs compaction, or answers from the first match without following wrappers.',
-      fix: 'Grep for a concrete entry point (name, route, error string), Read only the files or line ranges that matter, then follow imports, re-exports, and call sites one hop at a time. Use Glob when you need files by name, and delegate very broad discovery to an exploration subagent so the main context stays clean.',
+      fix: 'Grep for a concrete entry point (name, route, error string), Read only the files or line ranges that matter, then follow imports, re-exports, and call sites one hop at a time; at a wrapper module, list all its exported names and Grep for each. Use Glob when you need files by name, and delegate very broad discovery to an exploration subagent so the main context stays clean.',
     },
     exercise: {
       prompt: 'Pick the built-in tool that best fits each step.',
@@ -979,17 +985,17 @@ Task: understand how ShipmentRetryPolicy is configured and add a max-attempts gu
         options: [
           { id: 'a', text: 'Retry the same Edit until it succeeds' },
           { id: 'b', text: 'Set replace_all to true' },
-          { id: 'c', text: 'Read the surrounding code and extend old_string with distinctive context so it matches once' },
+          { id: 'c', text: 'Read the full current file, then Write it back with only the intended occurrence changed' },
           { id: 'd', text: 'Use Bash with sed to replace the first match' },
         ],
         correct: 'c',
-        why: 'Edit needs a unique anchor. Adding nearby distinctive text targets the intended location; replace_all would change all three, and sed on the first match may hit the wrong one.',
+        why: 'Read + Write is the reliable fallback when Edit cannot find a unique anchor: the fresh Read keeps everything else intact and the Write applies exactly one change. replace_all would change all three, and sed on the first match may hit the wrong one.',
       },
       {
         id: 'c3',
         stem: 'Grep for `sendInvoice` finds only its definition, yet invoices are clearly sent from several places. What is the most likely explanation and next step?',
         options: [
-          { id: 'a', text: 'The function is called through a wrapper or re-export under another name; find where it is imported and search for those names' },
+          { id: 'a', text: 'The function is called through a wrapper or re-export under another name; list the names the wrapper exports and search for each' },
           { id: 'b', text: 'Grep is unreliable; read every file in the repository instead' },
           { id: 'c', text: 'The callers must be in binary files; switch to Glob' },
           { id: 'd', text: 'The function is unused; delete it' },
@@ -1000,12 +1006,12 @@ Task: understand how ShipmentRetryPolicy is configured and add a max-attempts gu
     ],
     review: [
       { front: 'Grep vs. Glob', back: 'Grep searches inside files for content. Glob matches file paths by pattern and never reads contents.' },
-      { front: 'Edit anchor rules', back: 'old_string must match exactly (including whitespace) and be unique, and the file must have been read first. If not unique, extend it with distinctive context; Write for whole-file rewrites; replace_all only when every occurrence should change.' },
-      { front: 'Incremental exploration loop', back: 'Grep an entry point, Read only what matters, follow imports, re-exports, and call sites, repeat. Do not read everything up front.' },
+      { front: 'Edit anchor rules', back: 'old_string must match exactly (including whitespace) and be unique, and the file must have been read first. If it is not unique, fall back to Read the full file + Write it back (or extend the anchor if a unique neighbour is obvious); replace_all only when every occurrence should change.' },
+      { front: 'Incremental exploration loop', back: 'Grep an entry point, Read only what matters, follow imports and call sites, repeat. At a wrapper, list all exported names and Grep each. Do not read everything up front.' },
     ],
     sources: ['guide-d2', 'cc-tools', 'cc-workflows', 'cc-best-practices'],
     notes: [
-      { date: '2026-11-20', text: 'Built-in tool details are version-sensitive: Edit\'s replace_all option, the requirement to Read a file before editing it, Grep options (output modes, file filters), Glob result ordering, and exact error wording may differ across Claude Code releases. The error text in the example is illustrative. Verify against the current tools reference.' },
+      { date: '2026-11-21', text: 'The exam guide v1.1 confirms the selection rules taught here (Grep for content, Glob for paths, Edit for unique-text changes, Read + Write as the fallback when Edit\'s text is not unique). Product details remain version-sensitive: Edit\'s replace_all option, the requirement to Read a file before editing it, Grep options (output modes, file filters), Glob result ordering, and exact error wording may differ across Claude Code releases. The error text in the example is illustrative.' },
     ],
   },
 ];

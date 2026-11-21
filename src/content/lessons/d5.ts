@@ -214,29 +214,35 @@ All of this sits on top of the full message history: every request still sends t
       { term: 'Disambiguation', definition: 'Asking the user for a distinguishing identifier or detail when a request matches multiple records or has multiple reasonable readings.' },
     ],
     learningPoints: [
-      'List reliable escalation triggers: explicit request for a human, policy gap or exception, and lack of meaningful progress.',
-      'Explain why sentiment and self-reported confidence are unreliable escalation triggers.',
-      'Honor an explicit request for a human immediately rather than attempting one more resolution.',
-      'When the issue is simple but the customer is frustrated, offer the resolution once, and escalate if the customer reiterates a request for a person.',
-      'When multiple records match, ask for a distinguishing identifier instead of choosing with a heuristic.',
-      'Ask a targeted clarifying question when a request has more than one reasonable reading and acting on the wrong one is costly.',
+      'List the appropriate escalation triggers: an explicit request for a human, a policy exception or gap (not merely a complex case), and inability to make meaningful progress.',
+      'Explain why sentiment-based escalation and self-reported confidence scores are unreliable proxies for actual case complexity.',
+      'Write explicit escalation criteria into the system prompt, with few-shot examples showing when to escalate and when to resolve autonomously.',
+      'Honor an explicit request for a human immediately, without first investigating; for a frustrated customer with a straightforward in-scope issue, acknowledge the frustration and offer the resolution, escalating if they reiterate that they want a person.',
+      'Escalate when policy is ambiguous or silent on the specific request (for example, competitor price matching when policy only covers own-site price adjustments).',
+      'When a lookup returns multiple matches, ask for additional identifiers instead of choosing with a heuristic, and ask a targeted clarifying question when a request has two costly readings.',
     ],
     concept: `Think of a good front-desk employee. They hand you to a manager the moment you ask for one. They also get the manager when something is outside the rules they are allowed to apply, or when they have tried and are going nowhere. They do *not* call the manager just because you sound annoyed, and they do not guess which of three "John Smith" accounts is yours.
 
 ### Reliable escalation triggers
 
 - **Explicit request for a human.** Honor it immediately. Do not attempt one more fix first; that overrides the customer's stated choice and usually makes things worse.
-- **Policy gap or exception.** The request falls outside what policy lets the agent decide: an amount over the cap, an exception to a rule, a legal threat, suspected fraud, or a situation the policy simply does not address.
+- **Policy gap or exception.** The request falls outside what policy lets the agent decide: an amount over the cap, an exception to a rule, a legal threat, suspected fraud, or a situation the policy is ambiguous or silent about. Note that "complex" is not the trigger; a complex case that policy fully covers is still the agent's to resolve.
 - **No meaningful progress.** The agent has tried the reasonable steps and the case is not moving (the same tool error repeats, required data is unavailable, the customer and agent are going in circles).
+
+An example of policy silence: policy lets the agent adjust a price when *the company's own site* drops the price within 14 days, and a customer asks the agent to match *a competitor's* price. Policy neither allows nor forbids it. The agent should not stretch the own-site rule to cover it, and should not invent a refusal either: it escalates.
 
 ### Unreliable triggers
 
 - **Sentiment.** Frustration is not a reason to escalate on its own. Many frustrated customers have simple problems the agent can fix right now. Escalating on tone sends easy cases to an expensive queue and delays the customer.
-- **Self-reported confidence.** A model saying "I am 60% sure" is not a calibrated measurement. It does not reliably separate cases the agent will get wrong from cases it will get right.
+- **Self-reported confidence.** A model saying "I am 60% sure" is not a calibrated measurement. Agents are often confidently wrong on exactly the hard cases (an exception they should not grant), so a confidence threshold does not track case complexity.
+
+### Write the criteria down, with examples
+
+A system prompt that says "escalate complex or unusual cases" leaves the boundary to the model, and the result is inconsistent: easy cases go to humans while exception cases are handled autonomously. The proportionate fix is to state **explicit escalation criteria** in the system prompt (the triggers above, plus your specific policy limits) and add a few **few-shot examples** of borderline cases that show the decision and the reason: one that looks alarming but should be resolved, one that looks routine but needs an exception. Examples teach the boundary better than a longer list of adjectives.
 
 ### Frustrated customer, simple issue
 
-Acknowledge the frustration and **offer the resolution**. If the customer then reiterates that they want a person, that is now an explicit request: escalate.
+Acknowledge the frustration and **offer the resolution** when the issue is within the agent's capability. If the customer then reiterates that they want a person, that is now an explicit request: escalate. Contrast this with a customer who asks for a person up front: escalate right away, without first investigating the account to see whether the agent could have fixed it.
 
 ### Ambiguity is not escalation
 
@@ -244,8 +250,30 @@ When a lookup returns **multiple matching records**, ask for a distinguishing id
 
 Prompt instructions describe these rules; when a rule must hold every time (such as the refund cap), enforce it in code, for example with a hook that blocks the tool call and routes to escalation.`,
     example: {
-      intro: `Three short Lumen Mobile conversations, with the agent's decision at each point. The policy caps agent-issued refunds at $150 and requires identity verification before account changes.`,
+      intro: `An excerpt of Lumen Mobile's system prompt, then three short conversations with the agent's decision at each point. The policy caps agent-issued refunds at $150 and requires identity verification before account changes.`,
       artifacts: [
+        {
+          lang: 'text',
+          caption: 'System prompt excerpt: explicit escalation criteria with few-shot examples',
+          code: `## When to escalate (call escalate_to_human)
+Escalate when ANY of these is true:
+1. The customer asks for a human. Do it at once; do not investigate first.
+2. The request needs an exception to policy, exceeds the $150 cap, or is something
+   policy does not address (it is silent or ambiguous about this exact request).
+3. You have tried the reasonable steps and cannot make progress.
+Do NOT escalate only because the customer is upset or the case has many steps.
+
+## Examples
+Customer (angry): "Charged twice for March AGAIN, fix it now!"  Duplicate confirmed, $18.
+-> Resolve. Upset tone, but a duplicate refund under the cap is within policy.
+
+Customer (calm): "Can you match the price Skyline offers for this phone?"
+-> Escalate. Policy covers our own price drops only; competitor matching is not
+   addressed, so it needs a human decision.
+
+Customer: "My late fee should be waived, my dad passed away last month."
+-> Escalate. Bereavement waivers are an exception policy does not let you grant.`,
+        },
         {
           lang: 'text',
           caption: 'Conversation 1: frustrated customer, simple issue',
@@ -279,7 +307,9 @@ Agent:    Of course. I'm transferring you to a member of our support team now an
 }`,
         },
       ],
-      walkthrough: `**Conversation 1.** The customer is angry, but the issue is simple, verified, and well under the $150 cap. Escalating on tone would make them wait in a queue for a $15 fix. The agent acknowledges the frustration, states the exact facts, and offers the resolution. Had the customer replied "No, I want a person", that reiterated request would trigger immediate escalation.
+      walkthrough: `**System prompt.** Instead of "escalate complex cases", the prompt states the triggers and a negative rule (tone alone is not a trigger), then shows borderline examples with the reason for each decision. The competitor-match example teaches policy silence; the angry duplicate charge teaches that sentiment is not complexity.
+
+**Conversation 1.** The customer is angry, but the issue is simple, verified, and well under the $150 cap. Escalating on tone would make them wait in a queue for a $15 fix. The agent acknowledges the frustration, states the exact facts, and offers the resolution. Had the customer replied "No, I want a person", that reiterated request would trigger immediate escalation.
 
 **Conversation 2.** An explicit request for a human is honored immediately. The agent does not attempt "one quick fix first". It writes a useful handoff summary, including the fact that the customer is not yet verified, so the human does not repeat work.
 
@@ -303,7 +333,7 @@ Agent:    Of course. I'm transferring you to a member of our support team now an
       mistake: `Routing every conversation with strongly negative sentiment to a human, and letting the model escalate whenever it says it is "not confident".`,
       whyTempting: `Angry customers feel high-risk, and "escalate when unsure" sounds safe. Both signals are easy to compute and appear to err on the side of caution.`,
       howToRecognize: `The human queue fills with simple cases the agent could have fixed (refund a duplicate charge, resend a bill), first-contact resolution drops, while genuinely out-of-policy cases from calm customers are still handled by the agent. Escalation rates swing with wording rather than case difficulty.`,
-      fix: `Escalate on explicit human requests (immediately), policy gaps or exceptions, and lack of progress. For frustrated customers with simple issues, acknowledge and offer the fix; escalate if they reiterate. Ask for identifiers when records are ambiguous. Enforce hard limits like the refund cap in code rather than relying on the model's judgment.`,
+      fix: `Write explicit escalation criteria into the system prompt with a few borderline examples. Escalate on explicit human requests (immediately), policy gaps, exceptions, or silence, and lack of progress. For frustrated customers with simple issues, acknowledge and offer the fix; escalate if they reiterate. Ask for identifiers when records are ambiguous. Enforce hard limits like the refund cap in code rather than relying on the model's judgment.`,
     },
     exercise: {
       prompt: `For each situation, choose the agent's next step.`,
@@ -316,8 +346,9 @@ Agent:    Of course. I'm transferring you to a member of our support team now an
         { id: 'i4', text: 'lookup_invoice by customer name returns two open invoices for different accounts.', answer: 'Ask for an identifier', why: 'Multiple matching records: ask for the account number or invoice ID rather than guess which one is meant.' },
         { id: 'i5', text: 'Verified customer says "cancel my plan"; they have a base plan and a separate streaming add-on.', answer: 'Ask a clarifying question', why: 'Two reasonable readings with costly consequences if wrong; ask which they mean before acting.' },
         { id: 'i6', text: 'Agent offered the $22 refund; customer replies "I don\'t want your refund, I want a real person."', answer: 'Escalate now', why: 'The customer has reiterated a request for a human after the offer; that is an explicit request.' },
+        { id: 'i7', text: 'Verified customer asks the agent to match a rival carrier\'s lower price. Policy covers refunds when Lumen\'s own price drops, and says nothing about competitors.', answer: 'Escalate now', why: 'Policy is silent on this exact request. Stretching the own-price rule or refusing on the agent\'s own judgment both invent policy; a human decides.' },
       ],
-      solution: `Escalation follows observable triggers: a request for a person (i2, i6) or something outside policy (i3). Frustration with a simple issue (i1) gets an offered fix first. Ambiguity is resolved by asking: an identifier when records collide (i4), a clarifying question when the request itself has two readings (i5). None of these decisions uses sentiment scores or the model's self-rated confidence.`,
+      solution: `Escalation follows observable triggers: a request for a person (i2, i6), something outside policy (i3), or a request policy does not address (i7). Frustration with a simple issue (i1) gets an offered fix first. Ambiguity is resolved by asking: an identifier when records collide (i4), a clarifying question when the request itself has two readings (i5). None of these decisions uses sentiment scores or the model's self-rated confidence.`,
     },
     check: [
       {
@@ -379,12 +410,12 @@ Agent:    Of course. I'm transferring you to a member of our support team now an
       { term: 'Coverage annotation', definition: 'A note in the final output stating which sources, segments, or subtasks were not covered or only partially covered, and why.' },
     ],
     learningPoints: [
-      'Return structured error context from subagents: failure type, attempted query, partial results, retryability, and alternatives.',
-      'Distinguish an access failure from a valid empty result, in both tool design and reporting.',
-      'Recover locally from transient failures with bounded retries before escalating to the coordinator.',
-      'Avoid both silent suppression (returning empty as if successful) and aborting the whole workflow for one failed subtask.',
-      'Let the coordinator decide recovery using the structured context: retry, re-route to an alternative, or proceed with a gap.',
-      'Annotate coverage gaps in the final output so readers know what is missing.',
+      'Return structured error context from subagents (failure type, what was attempted, partial results, potential alternatives) so the coordinator can make an informed recovery decision.',
+      'Distinguish access failures (timeouts that need a retry decision) from valid empty results (successful queries with no matches), in both tool design and reporting.',
+      'Explain why generic statuses such as "search unavailable" hide the context the coordinator needs.',
+      'Recover locally from transient failures with bounded retries, and propagate only the errors a subagent cannot resolve, together with what was attempted and any partial results.',
+      'Avoid both anti-patterns: silently suppressing errors (returning empty results as success) and terminating the entire workflow on a single failure.',
+      'Structure synthesis output with coverage annotations that separate well-supported findings from topic areas with gaps due to unavailable sources.',
     ],
     concept: `Imagine sending four researchers to four libraries. One library is closed. A bad researcher either says nothing (so you assume that library had no relevant books) or phones you in a panic and tells everyone to stop. A good researcher says: "The east library was closed for a fire drill. I tried twice. I got two items from the reading room before it shut. The county archive has the same collection." Now you can decide.
 
@@ -392,6 +423,8 @@ Agent:    Of course. I'm transferring you to a member of our support team now an
 
 - **Silent suppression.** A subagent catches an error and returns an empty list or a generic "no relevant information found". The coordinator cannot tell that from a genuine absence, so the final report confidently omits a whole source.
 - **Whole-workflow abort.** One subagent error raises an exception that kills the run, discarding the successful work of every other subagent.
+
+A third, subtler failure is the **generic status**. Reporting "search unavailable" after exhausting retries is honest, but it throws away everything the coordinator needs to recover: what kind of failure it was, which query failed, what was already retrieved, and what else could be tried. The coordinator can only retry blindly or give up.
 
 ### What to return instead
 
@@ -408,11 +441,11 @@ A failing subagent returns **structured error context**:
 
 ### Recover locally first, then propagate
 
-Transient failures (a timeout, a 429) are best handled close to where they happen, with a small number of retries and backoff. Only when local recovery fails, or the error is not retryable (permission denied, invalid query), does the subagent report upward. The coordinator, which sees the whole plan, chooses: re-route to an alternative, retry with changed input, or proceed and record the gap.
+Transient failures (a timeout, a 429) are best handled close to where they happen, with a small number of retries and backoff. Only when local recovery fails, or the error is not retryable (permission denied, invalid query), does the subagent report upward, and then it includes what it attempted and any partial results. Propagating every transient blip floods the coordinator with decisions it should not need to make. The coordinator, which sees the whole plan, chooses: re-route to an alternative, retry with changed input, or proceed and record the gap.
 
 ### Coverage annotations
 
-The final output says what it could not cover: "Warehouse metrics for Q3 were unavailable (access error); conclusions about Q3 rely on public filings only." Readers can then weigh the conclusions correctly.`,
+The synthesis output says which findings are well supported and which topic areas have gaps because a source was unavailable: "Q1 and Q2 delivery performance: well supported (warehouse data plus filings). Q3: gap, warehouse metrics unavailable (access error); conclusions rely on public filings only." Readers can then weigh the conclusions correctly.`,
     example: {
       intro: `A Northwind research coordinator asked three subagents to gather evidence on a supplier's delivery performance. The data agent hit a problem. Compare a suppressing return with a structured one, and see how the coordinator uses it.`,
       artifacts: [
@@ -446,6 +479,8 @@ The final output says what it could not cover: "Warehouse metrics for Q3 were un
           lang: 'markdown',
           caption: 'Coverage note in the final report',
           code: `### Coverage
+- Well supported: on-time delivery for 2026-Q1 and 2026-Q2 (warehouse data, consistent
+  with the supplier's published scorecard).
 - Internal delivery metrics cover 2026-Q1 and 2026-Q2. Q3 warehouse data could not be
   retrieved (query timeout after 2 retries); the Q3 figure below comes from the
   quarterly_summary view and is less granular.
@@ -487,6 +522,8 @@ The coordinator now has choices it did not have before: it re-routes Q3 to the \
 3. Metrics MCP tool returns isError: true, "permission denied for schema finance".
 4. Web search timed out 3 times; 4 of 10 planned queries completed with results.
 5. Document agent cannot open one of eight supplied PDFs (corrupt file); others parsed.
+6. News search still times out after 2 backoff retries; 3 articles were already retrieved.
+   The draft return is { "status": "search unavailable" }.
 \`\`\``,
       labels: ['Retry locally', 'Report as valid empty result', 'Return structured error with partial results', 'Return structured error (not retryable)'],
       items: [
@@ -495,6 +532,7 @@ The coordinator now has choices it did not have before: it re-routes Q3 to the \
         { id: 'i3', text: 'Line 3: permission denied for schema finance', answer: 'Return structured error (not retryable)', why: 'Retrying will not fix a permission error. Report the failure type, attempted query, and alternatives so the coordinator can re-route.' },
         { id: 'i4', text: 'Line 4: repeated timeouts, 4 of 10 queries succeeded', answer: 'Return structured error with partial results', why: 'Local retries are exhausted. Keep the 4 successful results and report which queries failed so coverage can be annotated.' },
         { id: 'i5', text: 'Line 5: one corrupt PDF of eight', answer: 'Return structured error with partial results', why: 'Seven documents were processed; return them and name the unreadable file so the analyst can supply a new copy.' },
+        { id: 'i6', text: 'Line 6: "search unavailable" draft after retries, with 3 articles in hand', answer: 'Return structured error with partial results', why: 'The generic status hides the failure type, the failed query, and the 3 articles. Replace it with structured context so the coordinator can retry later, re-scope, or proceed with a labeled gap.' },
       ],
       solution: `Transient errors are retried close to the source (i1). A successful query with no hits is evidence and is reported as such (i2). Non-retryable errors are reported with enough context for the coordinator to choose an alternative (i3). When work partly succeeded, the successful part is kept and the gap is described precisely (i4, i5). None of these cases justifies silently returning nothing or aborting the whole research run.`,
     },
@@ -543,7 +581,7 @@ The coordinator now has choices it did not have before: it re-routes Q3 to the \
     ],
     sources: ['guide-d5', 'mcp-spec-tools', 'eng-multi-agent', 'sdk-subagents', 'app-authored'],
     notes: [
-      { date: NOTE_DATE, text: 'MCP tool results signal tool-level failures with `isError: true` plus content describing the error; protocol-level errors are separate. Field names and error conventions can change between specification revisions; verify against the current MCP specification.' },
+      { date: NOTE_DATE, text: 'The exam guide names the MCP `isError` flag for tool-level failures (protocol-level errors are separate). Exact result field names and error conventions can change between MCP specification revisions; verify against the current specification.' },
     ],
   },
 
@@ -562,12 +600,12 @@ The coordinator now has choices it did not have before: it re-routes Q3 to the \
       { term: 'Recovery manifest', definition: 'A file recording the plan, completed steps, and where outputs live, so a crashed or restarted run can resume without redoing work.' },
     ],
     learningPoints: [
-      'Recognize signs of context degradation in long exploration sessions.',
-      'Isolate verbose discovery (searches, large file reads) in subagents so only distilled findings return to the main context.',
-      'Persist findings in a scratchpad or notes file so they survive compaction and new sessions.',
-      'Use /compact deliberately, with guidance about what to preserve, at phase boundaries.',
-      'Summarize findings into an explicit brief before spawning next-phase agents, because subagents do not inherit the parent conversation.',
-      'Maintain a recovery manifest for long, multi-phase work so a crash does not mean starting over.',
+      'Recognize context degradation in extended sessions: inconsistent answers and references to "typical patterns" instead of the specific classes found earlier.',
+      'Spawn subagents for specific questions (for example "find all test files" or "trace refund flow dependencies") so verbose exploration stays isolated while the main agent keeps the high-level picture.',
+      'Maintain scratchpad files of key findings and refer back to them for later questions, so findings persist across context boundaries.',
+      'Summarize the key findings of one exploration phase and inject that summary into the initial context of the subagents spawned for the next phase.',
+      'Design crash recovery with structured state exports: each agent writes its state to a known location, and the coordinator loads a manifest on resume and injects it into agent prompts.',
+      'Use /compact to reduce context usage when an extended exploration session fills with verbose discovery output.',
     ],
     concept: `Exploring a two-million-line codebase is like searching an archive with a small desk. Every file you open covers more of the desk. After an hour, the note you wrote at the start is buried under printouts, and you start contradicting yourself. The fix is not a bigger desk; it is sending assistants to the stacks, keeping a notebook, and clearing the desk at sensible points.
 
@@ -577,11 +615,11 @@ In long sessions the window fills with grep output, full file reads, and dead en
 
 ### Tools for keeping context useful
 
-- **Isolate verbose discovery in subagents.** In Claude Code, an Explore-style subagent can run dozens of searches and reads in its *own* context and return a short summary. The main session receives the answer ("payment retries are in \`billing/retry/RetryPolicy.java\`, configured by \`retry.yaml\`"), not 40 KB of grep hits.
-- **Keep a scratchpad or notes file.** Write findings (file paths, call chains, decisions, open questions) to a file such as \`NOTES.md\`. Files survive \`/compact\`, \`/clear\`, and new sessions; the conversation does not.
-- **Compact deliberately.** \`/compact\` summarizes the conversation to free space. Run it at a phase boundary (after mapping, before implementing) and say what to keep, rather than waiting until the window is nearly full and the summary is rushed.
-- **Summarize before handing off.** Subagents do not inherit the parent's conversation. Before spawning a next-phase agent, write an explicit brief: what is known, key file paths, constraints, and what to do. Passing the notes file is often the simplest way.
-- **Recovery manifests.** For multi-phase work (for example, migrating 300 call sites), keep a manifest of the plan, completed items, and output locations. If the session crashes or is restarted, the next run reads the manifest and resumes from the first incomplete item.
+- **Isolate verbose discovery in subagents.** Give each subagent one specific question, such as "find all test files for the billing module" or "trace the dependencies of the refund flow". In Claude Code, the Explore subagent can run dozens of searches and reads in its *own* context and return a short summary. The main agent keeps the high-level picture and receives the answer ("payment retries are in \`billing/retry/RetryPolicy.java\`, configured by \`retry.yaml\`"), not 40 KB of grep hits.
+- **Keep a scratchpad or notes file.** Write findings (file paths, call chains, decisions, open questions) to a file such as \`NOTES.md\`, and have the agent consult it when answering later questions instead of relying on its memory of the session. Files survive \`/compact\`, \`/clear\`, and new sessions; the conversation does not.
+- **Compact deliberately.** When context fills with verbose discovery output, \`/compact\` summarizes the conversation to free space. Run it at a phase boundary (after mapping, before implementing) and say what to keep, rather than waiting until the window is nearly full.
+- **Summarize between phases.** Subagents do not inherit the parent's conversation. When one exploration phase ends, summarize its key findings (file paths, constraints, dead ends) and put that summary into the initial prompt of each subagent spawned for the next phase.
+- **Recovery manifests.** For long multi-agent work, each agent exports its state (completed items, findings, next item) to a known location, such as \`state/<agent>.json\`, and the coordinator keeps a manifest pointing to those files. After a crash, the coordinator loads the manifest on resume and injects each agent's saved state into that agent's prompt, so work continues from the first incomplete item instead of starting over or repeating side effects.
 
 ### Terminology recap
 
@@ -616,15 +654,24 @@ dedup logic, and file paths with line numbers. Do not return file contents.`,
         },
         {
           lang: 'json',
-          caption: 'migration-manifest.json for phase 3 (updating 37 dispatch call sites)',
-          code: `{
+          caption: 'Phase 3: coordinator manifest; three subagents each update 12-13 of 37 call sites and export state to state/<agent>.json',
+          code: `// state/manifest.json (owned by the coordinator)
+{
   "task": "Pass idempotency key at every WebhookDispatcher.dispatch call site",
-  "notes": "NOTES.md",
-  "total": 37,
-  "done": ["notify/ShipmentEventListener.java:54", "notify/ReturnsListener.java:71"],
-  "failed": [{ "site": "jobs/status_sync/main.go:142", "reason": "Go client wraps dispatch; needs separate change" }],
-  "next": "billing/InvoiceEvents.java:203",
+  "phase_summary": "NOTES.md#findings-phase-1",
+  "agents": {
+    "java-notify":  { "state": "state/java-notify.json",  "status": "done" },
+    "java-billing": { "state": "state/java-billing.json", "status": "in_progress" },
+    "go-jobs":      { "state": "state/go-jobs.json",      "status": "blocked" }
+  },
   "updated_at": "2026-11-20T14:12:00Z"
+}
+
+// state/java-billing.json (written by that subagent after every call site)
+{
+  "done": ["billing/InvoiceEvents.java:88", "billing/CreditEvents.java:40"],
+  "failed": [],
+  "next": "billing/InvoiceEvents.java:203"
 }`,
         },
       ],
@@ -632,9 +679,9 @@ dedup logic, and file paths with line numbers. Do not return file contents.`,
 
 The engineer then has Claude write **NOTES.md**. This is the durable record: it holds exact paths and line numbers, the key finding (two producers, no idempotency key), and open questions. Now running \`/compact\` with an instruction like "keep the findings in NOTES.md and the plan for phase 2" is low-risk, because the important facts are in a file, not only in the conversation.
 
-When implementation is handed to another agent, it gets an explicit brief that points at NOTES.md, because a subagent does not see the parent conversation.
+When implementation is handed to other agents, the coordinator puts the phase 1 summary from NOTES.md into each subagent's initial prompt, because a subagent does not see the parent conversation. Without it, each would repeat the discovery or miss the second producer.
 
-**Phase 3** touches 37 call sites, which is long enough for a crash or context limit to interrupt. The **manifest** records what is done, what failed and why, and the next item. A restarted session reads it and continues from \`billing/InvoiceEvents.java:203\` instead of rediscovering everything or editing the same files twice.`,
+**Phase 3** splits 37 call sites across three subagents, which is long enough for a crash to interrupt. Each subagent exports its own state to a known file after every call site, and the coordinator's **manifest** points to those files. If the process dies, the coordinator loads the manifest on resume, skips \`java-notify\` (done), and starts the billing subagent with its saved state injected into the prompt: "Already done: InvoiceEvents.java:88, CreditEvents.java:40. Continue from InvoiceEvents.java:203." No discovery is repeated and no file is edited twice.`,
     },
     compare: {
       question: 'An engineer needs to understand how an unfamiliar subsystem works before changing it. How should discovery be run?',
@@ -710,11 +757,11 @@ When implementation is handed to another agent, it gets an explicit brief that p
     review: [
       { front: 'Why use an Explore subagent for broad discovery?', back: 'Its searches and file reads stay in its own context; only a concise summary returns to the main session.' },
       { front: 'What survives /compact reliably?', back: 'Files: notes, scratchpads, manifests. The conversation itself is replaced by a summary.' },
-      { front: 'What should a recovery manifest contain?', back: 'The plan, completed items, failed items with reasons, the next item, and where outputs and notes live.' },
+      { front: 'How does crash recovery work for a multi-agent exploration?', back: 'Each agent exports its state (done, failed, next) to a known location; the coordinator keeps a manifest of those files, loads it on resume, and injects each agent\'s state into its prompt.' },
     ],
     sources: ['guide-d5', 'cc-subagents', 'cc-workflows', 'cc-best-practices', 'eng-context'],
     notes: [
-      { date: NOTE_DATE, text: 'Built-in subagent names (such as Explore), the subagent tool name (Task, possibly renamed Agent in newer releases), and `/compact` options and automatic compaction behavior are product details that change between Claude Code versions. Verify against current docs.' },
+      { date: NOTE_DATE, text: 'The exam guide names the Explore subagent, the Task tool for spawning subagents, and `/compact`. Current Claude Code releases may name the subagent tool differently (for example Agent) and change `/compact` options or automatic compaction behavior; verify against current docs.' },
     ],
   },
 
@@ -733,12 +780,11 @@ When implementation is handed to another agent, it gets an explicit brief that p
       { term: 'Review routing', definition: 'Rules that send low-confidence, ambiguous, or high-risk items to humans and let the rest proceed automatically.' },
     ],
     learningPoints: [
-      'Explain how aggregate accuracy can hide weak performance on specific document types or fields.',
-      'Use stratified random sampling to measure accuracy per segment.',
-      'Calibrate field-level confidence against a labeled validation set before using it for routing.',
-      'Route low-confidence and ambiguous items to human reviewers, and choose thresholds based on the cost of errors.',
-      'Validate each document type separately before reducing human review for it.',
-      'Keep sampling auto-accepted output to detect drift after review is reduced.',
+      'Explain how an aggregate accuracy figure (for example 97% overall) can hide poor performance on specific document types or fields.',
+      'Analyze accuracy by document type and field, and confirm consistent performance across every segment before automating high-confidence extractions or reducing human review.',
+      'Have the model output field-level confidence scores, then calibrate review thresholds against a labeled validation set.',
+      'Use stratified random sampling of high-confidence extractions to keep measuring error rates and to detect novel error patterns after review is reduced.',
+      'Route extractions with low confidence, or with ambiguous or contradictory source documents, to human review, prioritizing limited reviewer capacity where errors are most likely and most costly.',
     ],
     concept: `Suppose a school reports a 95% pass rate. That sounds great until you learn one class of 20 students had a 40% pass rate, hidden by hundreds of students in easy classes. Extraction pipelines have the same problem.
 
@@ -761,9 +807,15 @@ Routing by **field-level confidence** lets reviewers look at the few fields that
 - High-cost fields (amounts, bank details) can use stricter thresholds than low-cost ones.
 - When wrong values that look valid are costlier than blanks, prefer routing or leaving a field empty over a confident guess.
 
+Reviewer time is the scarce resource. Spend it where the calibrated data says errors are likely (low confidence), where the source itself is unclear or contradicts itself, and where an error is costly, rather than spreading it evenly or filling the queue in arrival order.
+
 ### Reduce review only with evidence
 
-Before lowering review for a document type, validate that type separately on a stratified sample. Reduce review segment by segment, not globally. After reducing it, keep a small random audit of auto-accepted items so you notice drift (new layouts, a supplier changes its template).`,
+Before lowering review for a document type, validate that type and its key fields separately on a stratified sample. Reduce review segment by segment, not globally.
+
+### Keep measuring what you no longer review
+
+Once high-confidence extractions are auto-accepted, nobody looks at them, so errors there are invisible. Keep a **stratified random sample of high-confidence extractions** going to reviewers every week, drawn per document type, supplier template, and field. It gives an ongoing error rate for the automated output and surfaces **novel error patterns** (a new layout, a supplier that changed its template) that a confidence score alone will not reveal, because the model is often confidently wrong on unfamiliar inputs.`,
     example: {
       intro: `Ledgerline wants to cut human review costs. The operations lead proposes auto-accepting all documents because overall field accuracy is 96.8%. Here is the stratified validation data.`,
       artifacts: [
@@ -800,14 +852,15 @@ scanned_remittance: { mode: full_review }
 handwritten_delivery_note: { mode: full_review }
 contract_payment_terms: { mode: full_review, revisit_after: 500 more labeled docs }
 ambiguous_or_missing_source_value: route_to_human
-audit: { random_sample_of_auto_accepted: 2% }`,
+audit:   # ongoing check of high-confidence, auto-accepted output
+  stratified_random_sample: { rate: 2%, strata: [doc_type, supplier_template, field], always_include_new_templates: true }`,
         },
       ],
       walkthrough: `The roughly 97% overall figure is dominated by typed English invoices, which are 78% of volume. Handwritten delivery notes are at 71%: almost one field in three is wrong. Auto-accepting everything would send those errors straight into client ERP systems, where wrong values that look valid are expensive.
 
 The calibration table shows that for typed English invoices, confidence scores are informative: fields at 0.95 and above are 99.4% correct in the labeled set. That justifies a threshold for *that segment*. The same score has not been validated for other segments, so it is not reused blindly; the DE/FR segment gets a stricter, provisional threshold until it is recalibrated.
 
-The policy reduces review only where evidence supports it, keeps full review for weak segments, always reviews high-risk fields like bank details, routes ambiguous source values to humans, and audits a random 2% of auto-accepted items to catch drift.`,
+The policy reduces review only where evidence supports it, keeps full review for weak segments, always reviews high-risk fields like bank details, and routes ambiguous source values to humans. The audit samples 2% of auto-accepted, high-confidence output *per stratum*, so a single supplier's new template cannot hide inside the typed-invoice average; that is how novel error patterns get noticed.`,
     },
     compare: {
       question: 'How should a team decide where to reduce human review of extracted data?',
@@ -883,7 +936,7 @@ The policy reduces review only where evidence supports it, keeps full review for
     review: [
       { front: 'Why can aggregate accuracy be misleading?', back: 'High-volume easy segments dominate it and hide poor accuracy on specific document types or fields.' },
       { front: 'What makes confidence usable for routing?', back: 'Calibration against a labeled validation set, ideally per segment and field, so thresholds map to observed accuracy.' },
-      { front: 'Safe way to reduce human review?', back: 'Validate each document type on a stratified sample, reduce review segment by segment, keep reviewing ambiguous and high-risk fields, and audit a random sample of auto-accepted output.' },
+      { front: 'Safe way to reduce human review?', back: 'Validate each document type on a stratified sample, reduce review segment by segment, keep reviewing ambiguous and high-risk fields, and keep a stratified random sample of high-confidence, auto-accepted output under review.' },
     ],
     sources: ['guide-d5', 'eval-tests', 'guard-hallucinations', 'app-authored'],
   },
@@ -902,22 +955,23 @@ The policy reduces review only where evidence supports it, keeps full review for
       { term: 'Established vs. contested finding', definition: 'An established finding is supported by multiple independent, consistent sources; a contested one has credible sources that disagree or thin evidence.' },
     ],
     learningPoints: [
-      'Preserve claim–source mappings (source, location, date, quote) through every summarization and synthesis step.',
-      'Annotate conflicting statistics with attribution instead of silently picking one value or averaging.',
-      'Use publication and collection dates to tell temporal change from genuine contradiction.',
-      'Separate well-established findings from contested or weakly supported ones in the final output.',
-      'Render content types appropriately, such as tables for financial figures and prose for news narratives.',
-      'Recognize when a conflict can be resolved by evidence (better methodology, primary source) and say why.',
+      'Explain how source attribution is lost when summarization compresses findings without their claim–source mappings, and require subagents to output structured mappings (source URL or document name, location, relevant excerpt) that the synthesis agent preserves and merges.',
+      'Annotate conflicting statistics from credible sources with attribution instead of arbitrarily selecting one value; let document analysis finish with conflicts included and annotated so the coordinator decides how to reconcile them before synthesis.',
+      'Require publication or data collection dates in structured outputs so temporal differences are not misread as contradictions.',
+      'Structure reports with explicit sections for well-established and contested findings, preserving each source\'s own characterization and methodological context.',
+      'Render content types appropriately in synthesis: financial data as tables, news as prose, technical findings as structured lists, rather than one uniform format.',
     ],
     concept: `A good research report is like a court brief: every claim points to an exhibit, disagreements between witnesses are laid out rather than hidden, and the reader can tell what is settled from what is still argued.
 
 ### Keep claim-to-source links through every step
 
-Multi-agent research compresses information several times: a search agent summarizes pages, an analysis agent summarizes those summaries, a writer drafts the report. At each step, citations can detach from claims. The fix is structural: every finding travels as a record with the **claim, source (URL or document), location (page or section), date, and a short supporting quote**. Summarizers merge and shorten the text but carry the mappings along; the writer cites from the records, not from memory.
+Multi-agent research compresses information several times: a search agent summarizes pages, an analysis agent summarizes those summaries, a writer drafts the report. At each step, citations can detach from claims. The fix is structural: subagents output every finding as a **claim–source mapping** with the claim, source (URL or document name), location (page or section), date, and the relevant excerpt. The synthesis agent must preserve these mappings and **merge** them when it combines findings: when two subagents report the same claim, the merged claim keeps both sources. The writer cites from the records, not from memory.
 
 ### Don't resolve conflicts arbitrarily
 
-When two sources disagree ("market grew 12%" vs. "market grew 8%"), picking one, or averaging them, invents certainty. Instead, **annotate the conflict with attribution**: who said what, when, and on what basis (survey vs. filings, region, definition). If there is a principled reason to prefer one (a primary filing over a press summary, a newer revision of the same dataset), say so explicitly.
+When two credible sources disagree ("market grew 12%" vs. "market grew 8%"), arbitrarily picking one, or averaging them, invents certainty. Instead, **annotate the conflict with attribution**: who said what, when, and on what basis (survey vs. filings, region, definition). If there is a principled reason to prefer one (a primary filing over a press summary, a newer revision of the same dataset), say so explicitly.
+
+Where the conflict is resolved matters too. A document analysis subagent that meets two values should **finish its analysis with both values included and annotated**, not quietly choose one or stop. The coordinator, which sees all the subagents' results and the research question, decides how to reconcile (ask for another source, prefer a primary filing, or mark it contested) *before* passing material to synthesis.
 
 ### Dates separate change from contradiction
 
@@ -925,11 +979,11 @@ Many apparent conflicts are just **temporal change**. A 2024 report and a 2026 r
 
 ### Separate established from contested
 
-Organize conclusions by strength: findings supported by several independent, consistent sources; findings that are contested; and findings resting on a single or weak source. This is how a report states uncertainty honestly instead of in vague hedges sprinkled everywhere.
+Give the report explicit sections by strength: well-established findings (several independent, consistent sources), contested findings, and findings resting on a single or weak source. Keep each source's own characterization ("preliminary estimate", "modeled", "self-reported survey") and its methodological context instead of upgrading it to "data shows". This is how a report states uncertainty honestly instead of in vague hedges sprinkled everywhere.
 
 ### Render content appropriately
 
-Match format to content. Financial figures and comparisons across sources or periods are easiest to check in a **table** (with a source and date column). News developments and context read best as **prose** with inline citations. Lists suit discrete findings. The format should make provenance easy to verify, not hide it.`,
+Match format to content instead of forcing everything into one format. Financial data and comparisons across sources or periods are easiest to check in a **table** (with source and date columns). News developments and context read best as **prose** with inline citations. Technical findings (configurations, failure modes, test results) work best as **structured lists**. The format should make provenance easy to verify, not hide it.`,
     example: {
       intro: `A Northwind analyst asks: "How large is the European cold-chain logistics market, and is it growing?" Subagents return findings as structured records. The report writer must synthesize them.`,
       artifacts: [
@@ -946,7 +1000,9 @@ Match format to content. Financial figures and comparisons across sources or per
   { "id": "F4", "claim": "Pharma cold-chain demand rising due to biologics", "source": "Three independent trade publications",
     "location": "various", "published": "2025-11 to 2026-08", "reference_period": "2025-2026", "quote": "..." },
   { "id": "F5", "claim": "Large carrier announced exit from refrigerated trucking", "source": "News article",
-    "location": "para 1-3", "published": "2026-09-15", "reference_period": "2026-09", "quote": "..." }
+    "location": "para 1-3", "published": "2026-09-15", "reference_period": "2026-09", "quote": "..." },
+  { "id": "F6", "claim": "71% of operators log temperatures continuously; 29% still log manually", "source": "Trade body technical survey",
+    "location": "p. 6", "published": "2026-04-01", "reference_period": "2025-Q4", "method": "self-reported survey, n=310", "quote": "..." }
 ]`,
         },
         {
@@ -971,18 +1027,22 @@ treated as definitive.
 
 ### Recent developments
 In September 2026 a large carrier announced it would exit refrigerated trucking [F5],
-which may tighten capacity; the report found no data yet on the effect on prices.`,
+which may tighten capacity; the report found no data yet on the effect on prices.
+
+### Technical findings
+- Temperature logging: continuous for 71% of operators, manual for 29%
+  (self-reported survey, n=310, 2025-Q4) [F6]`,
         },
       ],
       walkthrough: `**Provenance.** Every number in the report carries its finding ID, which maps back to a source, page, publication date, and reference period. Nothing was cited from memory.
 
 **Change vs. contradiction.** F3 (2023) and F1 (2025) come from the same publisher for different reference periods: that is growth over time, not a conflict. F1 and F2 cover the *same period* and disagree: that is a genuine conflict. Without the reference_period field, a writer might have called F3 vs. F1 a contradiction, or picked the most recent number and dropped the rest.
 
-**Attribution instead of resolution.** The report does not average EUR 61.2bn and EUR 54.0bn or quietly pick one. It attributes each figure, explains the likely cause (scope difference), and labels the 2025 size as contested.
+**Attribution instead of resolution.** The document analysis subagent returned both F1 and F2 with a conflict annotation rather than choosing one; the coordinator checked the scope notes and decided, before synthesis, to present both as contested. The report does not average EUR 61.2bn and EUR 54.0bn or quietly pick one. It attributes each figure, explains the likely cause (scope difference), and labels the 2025 size as contested.
 
 **Strength of evidence.** Pharma demand growth is established (multiple independent, consistent sources). Market size is contested. The carrier exit rests on one news report and is presented as a recent development, not a trend.
 
-**Rendering.** Figures by source and year belong in a table with source and date columns so readers can compare them; the news development is told as prose with an inline citation.`,
+**Rendering.** Figures by source and year belong in a table with source and date columns so readers can compare them; the news development is told as prose with an inline citation; the technical finding is a structured list item that keeps the source's own characterization (self-reported survey) and sample size.`,
     },
     compare: {
       question: 'Two credible sources give different values for the same statistic. What should the synthesis do?',

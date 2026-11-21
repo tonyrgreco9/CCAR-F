@@ -187,45 +187,45 @@ tool_use id=toolu_B name=lookup_transaction input={reference: "TX-55120"}
     objective: '1.4',
     type: 'single',
     selectCount: 1,
-    stem: `Lumen's system prompt says: "Before calling \`issue_refund\`, \`apply_credit\`, or \`change_plan\`, confirm the customer is verified using \`get_customer\`." An audit of 4,000 conversations finds 31 account changes made while \`get_customer\` reported \`verification_status: "unverified"\`, mostly after customers insisted they had verified on an earlier call. Policy requires verification before any account change, with no exceptions. The team still wants the agent to resolve verified customers' requests end to end. What should the team do? Select ONE.`,
+    stem: `Lumen policy: before \`cancel_line\` runs, the agent must call \`check_port_out\`, because cancelling a line while a number transfer is pending releases the phone number permanently and the customer loses it. The system prompt states this rule. An audit of 3,200 cancellations finds 14 where \`cancel_line\` ran with no \`check_port_out\` call in the conversation, mostly after customers said "my number has already moved to my new carrier." Policy allows no exceptions, and the team still wants the agent to complete cancellations end to end. What should the team do? Select ONE.`,
     options: [
       {
         id: 'a',
-        text: 'Move the instruction to the top of the system prompt in capital letters and add an example of refusing an insistent customer.',
+        text: 'Rewrite the rule as a numbered checklist at the top of the system prompt, with an example of checking anyway when a customer says the number has moved.',
         correct: false,
-        assumption: 'The misses happen because the instruction is not prominent enough, so stronger wording will make it hold.',
-        refutingFact: 'The rule must hold with no exceptions, and the failures happen under customer pressure; prompt instructions are followed probabilistically, so some insistent customers will still get through.',
-        consequence: 'The violation rate would drop but not reach zero, leaving unverified account changes and the fraud exposure they create.',
-        wouldBeRightIf: 'If the rule were a soft guideline where an occasional miss is acceptable, such as a preferred greeting, stronger prompt wording would be proportionate.',
+        assumption: 'The misses happen because the rule is not prominent or concrete enough, so clearer wording and an example will make it hold.',
+        refutingFact: 'The rule must hold with no exceptions and already fails when customers assert the transfer is done; prompt instructions keep a non-zero failure rate however they are worded.',
+        consequence: 'Skipped checks become rarer but do not stop, and each remaining one can permanently cost a customer their phone number.',
+        wouldBeRightIf: 'The step were a soft preference where an occasional miss is cheap and reversible, such as offering a retention discount before cancelling.',
       },
       {
         id: 'b',
-        text: 'Add a nightly job in which a second Claude instance reviews transcripts and flags changes made without verification.',
+        text: 'Add a nightly job that compares the day\'s cancellations with check_port_out calls and opens a ticket for every cancellation that ran without one.',
         correct: false,
         assumption: 'Detecting violations after the fact is enough to enforce the policy.',
-        refutingFact: 'The policy requires verification before the change; a nightly review only finds violations after refunds and plan changes have already happened.',
-        consequence: 'Money would still go out and plans would still change on unverified accounts; the team would just learn about it the next day.',
-        wouldBeRightIf: 'If the goal were to measure how often a prompt-level rule is followed, an after-the-fact review would be a useful monitoring tool.',
+        refutingFact: 'Cancelling during a pending transfer releases the number permanently, so a ticket opened the next night cannot undo the harm.',
+        consequence: 'The team would learn about each lost number a day later while the same unchecked cancellations kept happening.',
+        wouldBeRightIf: 'The goal were only to measure how often a prompt-level rule is followed, or the action could be fully reversed the next day.',
       },
       {
         id: 'c',
-        text: 'Remove all three account-change tools from the agent and send every account change to the human queue.',
+        text: 'Remove cancel_line from the agent and route every cancellation request to the human retention queue for processing.',
         correct: false,
-        assumption: 'The only safe way to stop unverified changes is to stop the agent from making changes at all.',
-        refutingFact: 'The team wants verified customers resolved end to end and measures first-contact resolution; the problem is only the small share of unverified changes.',
-        consequence: 'Every refund and plan change would wait for a human, collapsing first-contact resolution to fix a gate problem.',
-        wouldBeRightIf: 'If regulation required human approval for every account change regardless of verification, removing the tools would be necessary.',
+        assumption: 'The only safe way to stop unchecked cancellations is to stop the agent from cancelling at all.',
+        refutingFact: 'The team wants cancellations completed end to end, and the problem is a missing prerequisite in 14 of 3,200 cases, not cancellation itself.',
+        consequence: 'Every cancellation would wait for a human, adding queue time and cost to thousands of cases to fix a gating problem.',
+        wouldBeRightIf: 'Regulation required a human to approve every line cancellation regardless of what checks had run.',
       },
       {
         id: 'd',
-        text: 'Add a PreToolUse hook that blocks those three tools unless the get_customer result for that customer shows verified status.',
+        text: 'Gate cancel_line with a PreToolUse hook that denies it unless check_port_out has returned "no pending transfer" for that line in this case.',
         correct: true,
-        whyItWorks: 'A PreToolUse hook runs in code on every call, so the prerequisite holds deterministically regardless of what the customer says or how the model interprets the prompt, while verified customers are still served end to end.',
-        supportingClue: 'Policy allows no exceptions, and the audit shows the prompt-only rule failed when customers pushed back.',
+        whyItWorks: 'The hook runs in code before every cancel_line call and checks the recorded check_port_out result, so the prerequisite holds deterministically whatever the customer claims, while ordinary cancellations still complete end to end.',
+        supportingClue: 'The failures happened when customers asserted the number had already moved, and policy allows no exceptions to the check.',
       },
     ],
-    decidingClue: 'A rule that must hold every time was enforced only by a prompt instruction, and it failed under customer pressure.',
-    explanation: 'Prompt instructions are probabilistic; when a prerequisite must hold every time, it needs a deterministic gate in code. A PreToolUse hook that checks recorded verification status blocks unverified account changes while leaving verified flows untouched. After-the-fact review only detects, and removing tools sacrifices resolution.',
+    decidingClue: 'An irreversible action must always be preceded by a specific check, and the prompt-only rule was skipped when customers asserted the check was unnecessary.',
+    explanation: 'Prompt instructions are probabilistic, so a prerequisite that must hold every time needs a deterministic gate. A PreToolUse hook that requires a recorded "no pending transfer" result before cancel_line blocks every unchecked cancellation without taking cancellations away from the agent. After-the-fact review cannot reverse a released number, and removing the tool sacrifices end-to-end resolution.',
     remediation: { lesson: '1.4', section: 'compare' },
     sources: ['guide-d1', 'sdk-hooks'],
   },
@@ -272,9 +272,9 @@ tool_use id=toolu_B name=lookup_transaction input={reference: "TX-55120"}
       },
       {
         id: 'e',
-        text: 'The reason for escalation and the specific decision or action the human is being asked to take.',
+        text: 'The root cause the agent found, why it is escalating, and the specific action it recommends the human take.',
         correct: true,
-        whyItWorks: 'Stating why the case was escalated and what decision is needed lets the human start from the open question instead of reconstructing it from the transcript.',
+        whyItWorks: 'Stating the diagnosed root cause, why the case was escalated, and the recommended action lets the human start from the open decision instead of reconstructing the case from the transcript.',
         supportingClue: 'Humans re-read entire transcripts to work out what the case needs.',
       },
       {
@@ -507,52 +507,52 @@ tool_use id=toolu_B name=lookup_transaction input={reference: "TX-55120"}
     objective: '2.1',
     type: 'single',
     selectCount: 1,
-    stem: `When customers ask "Did my refund go through?", Lumen's agent calls \`lookup_invoice\` about 40% of the time, finds no refund line, and wrongly says no refund exists. Refunds are recorded only as transactions. It also sometimes calls \`lookup_transaction\` with invoice numbers. The current definitions:
+    stem: `Lumen added a telephony MCP server whose \`schedule_callback\` tool sits beside the agent's existing \`escalate_to_human\`. Since then, 31% of customers who type "I want to talk to someone now" get a callback booked for the next day instead of a live transfer. About a fifth of customers genuinely ask to be called back later. The definitions:
 
 \`\`\`
-lookup_invoice:     "Looks up billing information."  input: {id: string}
-lookup_transaction: "Looks up billing records."      input: {id: string}
+escalate_to_human:  "Hands the customer over."           input: {reason: string}
+schedule_callback:  "Arranges contact with the customer." input: {phone: string, window: string}
 \`\`\`
 
-Invoice IDs look like \`INV-1234\`; transaction references look like \`TX-55120\`. What should the team change first? Select ONE.`,
+The system prompt says nothing about either tool. What should the team change first? Select ONE.`,
     options: [
       {
         id: 'a',
-        text: 'Add a routing rule to the system prompt stating that any question about a refund must be answered with lookup_transaction.',
+        text: 'Add a PreToolUse hook that blocks schedule_callback whenever the conversation contains "now", "human", or "someone".',
         correct: false,
-        assumption: 'The confusion is limited to refund questions, so one routing rule will cover it.',
-        refutingFact: 'The agent also passes invoice numbers to lookup_transaction; both descriptions say "billing" with an untyped id, so the tool definitions are ambiguous for every question, not just refunds.',
-        consequence: 'Refund questions would improve, but other mix-ups would continue because the tools still look interchangeable.',
-        wouldBeRightIf: 'If the tool descriptions were already precise and one specific routing gap remained, a targeted prompt rule would be a reasonable patch.',
+        assumption: 'A deterministic keyword gate in code is more reliable than letting the model choose between the two tools.',
+        refutingFact: 'A fifth of customers legitimately want a later callback and may still say "someone" ("can someone ring me tomorrow?"); the root problem is that neither description says what the tool does or when to use it.',
+        consequence: 'Legitimate callback requests would be blocked while other phrasings of "now" slip through, and the vague definitions would keep misleading the model everywhere else.',
+        wouldBeRightIf: 'If a business rule required that callbacks never be booked in a specific, reliably detectable situation regardless of model judgment, a hook would be the right enforcement.',
       },
       {
         id: 'b',
-        text: 'Rewrite both descriptions to say what each returns, when to use it, its ID format, and that refunds live in transactions.',
-        correct: true,
-        whyItWorks: 'Tool descriptions are the model\'s main basis for choosing tools. Stating what each returns, when to use it, its input format, and where refunds live separates two near-identical tools for every type of question.',
-        supportingClue: 'Both descriptions say only "billing" and accept an untyped id, even though the ID formats and contents differ.',
+        text: 'Remove schedule_callback from the agent so every request for a person becomes a live transfer to the human queue.',
+        correct: false,
+        assumption: 'The callback tool is the source of errors, so removing it eliminates the misrouting.',
+        refutingFact: 'About a fifth of customers genuinely ask to be called back later, so the capability is needed; the problem is only that the two tools cannot be told apart.',
+        consequence: 'Customers who asked for a call tomorrow would be pushed into a live queue they cannot wait in, and the handoff queue would grow.',
+        wouldBeRightIf: 'If callbacks were rare and handled by human staff after transfer anyway, dropping the tool from this agent would simplify its toolset.',
       },
       {
         id: 'c',
-        text: 'Add a few-shot example to the system prompt showing a refund question answered with lookup_transaction.',
-        correct: false,
-        assumption: 'One example of the right tool choice will teach the model to distinguish the tools.',
-        refutingFact: 'The descriptions themselves are nearly identical, and the agent also misroutes invoice numbers; a single refund example does not explain the difference between the tools.',
-        consequence: 'Refund questions phrased like the example might improve while other phrasings and the invoice-number misuse continue.',
-        wouldBeRightIf: 'If the descriptions were already clear and the model still struggled with one ambiguous phrasing, a targeted example would help.',
+        text: 'Rewrite both descriptions: what each does (live transfer now vs. a call at a later time), when to use each, required inputs, and when to use the other.',
+        correct: true,
+        whyItWorks: 'The model chooses between tools mainly from their descriptions. Stating that one is an immediate live handoff and the other books a future phone call, when each applies, and pointing each at the other gives the model a clear basis for every phrasing of the request.',
+        supportingClue: 'The definitions are "Hands the customer over" and "Arranges contact with the customer", which say nothing about timing, so "talk to someone now" matches both.',
       },
       {
         id: 'd',
-        text: 'Force lookup_transaction through tool_choice whenever the customer\'s message contains the word "refund" or "refunded".',
+        text: 'Add a system-prompt rule: "If the customer mentions a human, a person, or someone, call escalate_to_human."',
         correct: false,
-        assumption: 'Keyword routing in code is more reliable than relying on the model to choose.',
-        refutingFact: 'Customers ask about refunds in many ways, and some refund questions name an invoice; the problem is ambiguous tool definitions, which keyword forcing does not fix.',
-        consequence: 'Messages like "is it back on my card yet?" would miss the rule, while "refund" questions about an invoice would be forced to the wrong tool.',
-        wouldBeRightIf: 'If one deterministic workflow step always needed the transaction lookup, forcing that tool for that step would be appropriate.',
+        assumption: 'A keyword rule in the system prompt will steer the model to the right tool for these requests.',
+        refutingFact: 'Callback requests use the same words ("can a person call me back tomorrow?"), so a keyword-triggered instruction creates an unintended association and would override even well-written descriptions.',
+        consequence: 'Many genuine callback requests would be turned into live transfers, while the vague definitions remain for every other agent that uses these tools.',
+        wouldBeRightIf: 'If the descriptions were already precise and the only remaining gap were a policy (e.g. always offer a live transfer first), a situation-based prompt instruction would be appropriate.',
       },
     ],
-    decidingClue: 'The two tools have nearly identical descriptions and an untyped id input, so the model cannot tell when to use which.',
-    explanation: 'The model chooses tools mainly from their descriptions. When two tools are described as "billing" lookups with the same input, misrouting is expected. Describing what each returns, when to use it, and its ID format fixes the root cause; prompt rules, single examples, and keyword forcing patch symptoms.',
+    decidingClue: 'Both descriptions are one vague line that omits timing ("Hands the customer over" vs. "Arranges contact"), and the system prompt does not mention either tool.',
+    explanation: 'With two tools whose descriptions do not say what distinguishes them, the model has no basis for choosing, so misrouting is expected. Describing what each tool does, when to use it, its inputs, and the boundary with the other fixes the root cause. Keyword rules (in a hook or the prompt) misfire on shared vocabulary, and removing the tool loses a needed capability.',
     remediation: { lesson: '2.1', section: 'mistake' },
     sources: ['guide-d2', 'eng-writing-tools', 'api-implement-tool-use'],
   },
@@ -679,7 +679,7 @@ Last month: "unlimited" was matched to Unlimited Plus ($85) instead of Unlimited
     stem: `A verified customer is owed a $62.40 refund for a duplicate charge. The tool wrapper assigns a transaction reference before calling the billing service. The agent calls \`issue_refund\`, and the call times out before any confirmation arrives. The tool returns:
 
 \`\`\`json
-{"isError": true, "errorCategory": "timeout", "retryable": "unknown",
+{"isError": true, "errorCategory": "transient", "isRetryable": false,
  "transactionRef": "RF-88213",
  "message": "No confirmation received; refund outcome unknown"}
 \`\`\`
@@ -792,7 +792,7 @@ Lumen's billing backend stores each refund under the request reference, and \`lo
     stem: `Lumen moved refunds to a new payment processor. A verified customer is owed $62.40 for a duplicate charge. The agent's \`issue_refund\` call times out before any confirmation arrives. The tool returns:
 
 \`\`\`json
-{"isError": true, "errorCategory": "timeout",
+{"isError": true, "errorCategory": "transient", "isRetryable": true,
  "idempotencyKey": "case-5521-refund-1",
  "message": "No confirmation received; outcome unknown"}
 \`\`\`

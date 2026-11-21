@@ -481,7 +481,7 @@ export const questions: Question[] = [
       },
       {
         id: 'd',
-        text: 'On timeout, return `isError: true` with `{"error_type": "transient", "retryable": true}`; reserve empty text for blank pages.',
+        text: 'On timeout, return `isError: true` with `{"errorCategory": "transient", "isRetryable": true}`; reserve empty text for blank pages.',
         correct: true,
         whyItWorks: 'Distinguishing a failure from a valid empty result, and saying whether it is retryable, lets the agent retry timeouts and escalate pages that keep failing, instead of recording missing line items.',
         supportingClue: 'Blank pages and timeouts currently return the same payload, and retries succeed about 90% of the time.',

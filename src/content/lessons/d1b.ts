@@ -602,12 +602,17 @@ Hybrids are common: a fixed outer pipeline with one dynamic step inside, or a dy
       {
         term: 'Resume',
         definition:
-          'Continue an existing session with its full history. In Claude Code: `claude --resume` (or `--continue` for the most recent). In the Agent SDK: the `resume` option with a session ID.',
+          'Continue an existing session with its full history. In Claude Code: `claude --resume <session-name>` for a named session (or `--continue` for the most recent). In the Agent SDK: the `resume` option with a session ID.',
       },
       {
         term: 'Fork',
         definition:
           'Start a new session that begins with a copy of an existing session\'s history, leaving the original unchanged. In the SDK: `fork_session=True` (Python) / `forkSession: true` (TypeScript) together with `resume`.',
+      },
+      {
+        term: 'Named session',
+        definition:
+          'A session given a human-readable name (for example `auth-timeout-investigation`) so it can be resumed later with `--resume <session-name>` instead of hunting for an ID or relying on "most recent".',
       },
       {
         term: 'Stale tool result',
@@ -621,11 +626,11 @@ Hybrids are common: a fixed outer pipeline with one dynamic step inside, or a dy
       },
     ],
     learningPoints: [
-      'Explain what a session stores and how resuming differs from starting a new session.',
-      'Resume a session by ID in the Agent SDK and in Claude Code, and capture the session ID from a run.',
-      'Use forking to explore two divergent approaches from a shared baseline without contaminating the original.',
-      'Tell a resumed session exactly which files or data changed since it last ran, so it re-reads them instead of trusting old tool results.',
-      'Recognize when to start fresh with a structured summary instead of resuming a stale or bloated session.',
+      'Continue a specific earlier investigation across work sessions with `--resume <session-name>`, rather than relying on "most recent" or a fresh start.',
+      'Use fork_session to branch independent explorations (two testing strategies, two refactoring approaches) from one shared analysis baseline.',
+      'Tell a resumed session exactly which files changed since it last ran, so it re-analyzes those files instead of re-exploring everything or trusting stale results.',
+      'Explain why a new session seeded with a structured summary is more reliable than resuming with stale tool results.',
+      'Choose between resuming (prior context mostly valid) and starting fresh with an injected summary (prior tool results stale).',
     ],
     concept: `A session is the agent's memory of a piece of work: every message, every tool call, and every tool result, saved under an ID. Resuming reloads that whole history, so the agent remembers what it read and decided. That is the strength, and it is also the risk.
 
@@ -633,14 +638,14 @@ The risk is that **the history includes old tool results, and the model treats t
 
 So you have three options when picking up earlier work:
 
-1. **Resume** when the history is still accurate and still useful. If some things changed, say so in your first message: name the changed files, say what kind of change it was, and ask the agent to re-read them before continuing.
-2. **Fork** when you want to try two different directions from the same starting point. A fork copies the history into a new session ID; the original stays as it was. You can analyze a module once, then fork into "approach A: add a cache" and "approach B: batch the queries" and compare the results, without either attempt polluting the other or the baseline.
-3. **Start fresh with a structured summary** when the history is mostly stale (many files changed, data refreshed) or so long that it is crowding the context with verbose tool output. Write a summary that keeps the exact facts that matter (IDs, numbers, file paths, decisions and why) and start a new session with it. The agent then reads current files instead of trusting old ones.
+1. **Resume** when the history is still accurate and still useful. Give long-running investigations a **name** so you can return to the right one: \`claude --resume auth-timeout-investigation\` picks up that exact conversation days later, even if you have opened other sessions since (\`--continue\` would just take the most recent one). If some things changed, say so in your first message: name the changed files, say what kind of change it was, and ask the agent to re-read them before continuing. Targeted re-analysis of the named files is far cheaper than re-exploring the whole codebase.
+2. **Fork** (\`fork_session\`) when you want to try two different directions from the same starting point. A fork copies the history into a new, independent session; the original stays as it was. You can analyze a module once, then fork into "approach A: add a cache" and "approach B: batch the queries", or into two testing strategies, and compare the results, without either attempt polluting the other or the baseline.
+3. **Start fresh with a structured summary** when the history is mostly stale (many files changed, data refreshed) or so long that it is crowding the context with verbose tool output. Write a summary that keeps the exact facts that matter (IDs, numbers, file paths, decisions and why) and start a new session with it. This is more reliable than resuming because stale tool results are simply not there to mislead the model, while the conclusions that still hold are carried forward. The agent then reads current files instead of trusting old ones.
 
 ### Terminology
 
 - **Session ID**: the handle you store to resume or fork later. The SDK reports it in its messages (for example on the final result message).
-- **\`resume\`**: SDK option to continue a session; **\`claude --resume\`** / **\`claude --continue\`** in the CLI.
+- **\`resume\`**: SDK option to continue a session; **\`claude --resume <session-name>\`** (named session) / **\`claude --continue\`** (most recent) in the CLI.
 - **\`fork_session\`** (Python) / **\`forkSession\`** (TypeScript): with \`resume\`, branch into a new session ID instead of appending to the original. The CLI has a matching \`--fork-session\` flag.
 - **Stale context**: history that no longer matches the world.
 
@@ -682,7 +687,8 @@ fork_b = await run("Design fix B: batch limit checks per request with a Lua scri
           caption: 'Claude Code CLI equivalents',
           code: `claude --continue                      # resume the most recent session in this directory
 claude --resume                        # pick a past session interactively
-claude --resume <session-id>           # resume a specific session
+claude --resume rate-limiter-429s     # resume the session named "rate-limiter-429s"
+claude --resume <session-id>           # resume a specific session by ID
 claude --resume <session-id> --fork-session   # branch into a new session from that history`,
         },
         {
@@ -764,6 +770,12 @@ No other files under services/rate-limiter changed.`,
           why: 'Most history is still valid. Resume and open with a notice naming the two changed files and asking the agent to re-read them.',
         },
         {
+          id: 'e6',
+          text: 'A developer has been switching between three investigations this week. She wants to continue the one named "invoice-rounding", which is not her most recent session; nothing it read has changed.',
+          answer: 'Resume',
+          why: 'The history is valid, so resume that specific session by name with `claude --resume invoice-rounding`. `--continue` would open the most recent session, which is a different investigation.',
+        },
+        {
           id: 'e5',
           text: 'Mid-investigation, the developer wants to test a speculative hypothesis that would add a lot of noise without disturbing the main line of investigation.',
           answer: 'Fork',
@@ -816,6 +828,10 @@ No other files under services/rate-limiter changed.`,
         back: 'Resume appends new turns to the original session. Fork (resume plus fork_session / forkSession / --fork-session) creates a new session ID that starts from a copy of the history, leaving the original unchanged.',
       },
       {
+        front: 'How do you pick up a specific earlier investigation that is not your most recent session?',
+        back: 'Resume it by name: `claude --resume <session-name>`. `--continue` only reopens the most recent session.',
+      },
+      {
         front: 'What should the first message of a resumed session include if files changed?',
         back: 'Which files changed (and how), an instruction to re-read them before relying on earlier reads, what is now obsolete, and ideally what did not change.',
       },
@@ -827,8 +843,8 @@ No other files under services/rate-limiter changed.`,
     sources: ['guide-d1', 'sdk-sessions', 'cc-cli-reference', 'cc-workflows', 'eng-context', 'app-authored'],
     notes: [
       {
-        date: '2026-11-20',
-        text: 'Option and flag names are version-sensitive: the example uses `resume` and `fork_session` (Python), `forkSession` (TypeScript), `ResultMessage.session_id`, and the CLI flags `--continue`, `--resume`, and `--fork-session`. Recent Claude Code versions may also let you name a session and resume it by name; that behavior was not confirmed here. Verify all of these against the current Agent SDK and Claude Code CLI documentation, which could not be fetched when this lesson was written.',
+        date: '2026-11-21',
+        text: 'The exam guide (v1.1) confirms `--resume <session-name>` for named sessions and `fork_session` for branching, and this lesson teaches both. How a session gets its name (a flag at start-up or a rename command), the TypeScript spelling `forkSession`, `ResultMessage.session_id`, and the CLI `--fork-session` flag are version-sensitive details that may differ in current releases; check the current Agent SDK and Claude Code CLI documentation.',
       },
     ],
   },

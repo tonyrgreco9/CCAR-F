@@ -748,7 +748,7 @@ This is the same reasoning as the invoice without a PO number: a schema that can
     notes: [
       {
         date: NOTE_DATE,
-        text: 'Structured outputs (schema-constrained responses and strict tool schemas) is a newer API feature; its request parameter names, beta headers, model support, and supported JSON Schema keywords (for example, type arrays for nullability) have changed over time. Verify against current docs before relying on specific parameter names.',
+        text: 'The exam guide confirms tool_use with JSON schemas, the auto/any/forced tool_choice options, nullable fields, and strict mode for eliminating syntax errors. Separate schema-constrained "structured outputs" features have changed over time (request parameter names, model support, supported JSON Schema keywords such as type arrays for nullability); check current docs before relying on specific parameter names.',
       },
       {
         date: NOTE_DATE,
@@ -883,7 +883,7 @@ export function validateInvoice(r: Invoice, client: ClientRules): Issue[] {
 }`,
         },
       ],
-      walkthrough: `The validator found two problems and labeled each with \`retryable\`. The retry is a follow-up in the same conversation, so the request carries all three things a correction needs: the invoice text (the first user message), the failed extraction (the previous \`tool_use\` input), and the specific error (the \`tool_result\` below).
+      walkthrough: `The validator found two problems and labeled each with \`retryable\`. The retry is a follow-up in the same conversation, so the request carries all three things a correction needs: the invoice text (the first user message), the failed extraction (the previous \`tool_use\` input), and the specific error (the \`tool_result\` in the retry turn).
 
 1. **invoice_date "14.10.2026"** is present in the source, just not in ISO format. The retry message names the field, the rule, and the source convention (DD.MM.YYYY). The second attempt returns \`2026-10-14\`. Fixed in one retry.
 2. **po_number null, client requires PO.** The PO is not printed anywhere. No retry can create it, so this error is deliberately *not* sent back to the model. The retry message even says "do not change po_number", to avoid pressuring it into a placeholder. The record goes to \`needs_review\` with a specific reason.
@@ -1025,21 +1025,26 @@ invoices_paid and discount_taken need nothing. Note that discount_taken being nu
       { term: 'Result types', definition: 'Each batch result reports an outcome such as succeeded, errored, canceled, or expired.' },
     ],
     learningPoints: [
-      'State the trade-off of the Message Batches API: substantially lower cost in exchange for asynchronous results with no latency guarantee.',
-      'Match latency-tolerant workloads (nightly backlogs) to batches and blocking or interactive work to synchronous calls.',
-      'Explain why multi-turn tool loops cannot run inside a single batch request.',
-      'Use custom_id to join results to source records and to identify failed items.',
-      'Recover a partial failure by fixing the cause and resubmitting only failed custom_ids.',
-      'Refine and validate the prompt on a small sample before submitting the full volume.',
+      'State the Message Batches API trade-off: 50% cost savings, a processing window of up to 24 hours, and no guaranteed latency SLA.',
+      'Match the API to the workflow: batch for non-blocking, latency-tolerant work (overnight reports, weekly audits, nightly test generation); synchronous calls for blocking work such as pre-merge checks.',
+      'Explain why a batch request cannot run multi-turn tool calling (no way to execute a tool mid-request and return its result).',
+      'Use custom_id to correlate each batch request with its response, since results are not returned in order.',
+      'Calculate how often to submit batches so a delivery SLA holds even when a batch takes the full 24 hours.',
+      'Handle batch failures by resubmitting only the failed custom_ids, modified where needed (for example, chunking documents that exceeded the context limit).',
+      'Refine the prompt on a sample set before batch-processing large volumes, to raise first-pass success and avoid costly resubmission rounds.',
     ],
-    concept: `Some work needs an answer now: a customer is waiting, or a merge gate is blocking. Other work just needs to be done by morning. The Message Batches API is built for the second kind. You submit many independent requests together, the API processes them asynchronously at **roughly half the cost** of standard calls, and you collect the results later. Most batches finish well within the window, but results can take **up to 24 hours** and there is **no latency guarantee**.
+    concept: `Some work needs an answer now: a customer is waiting, or a merge gate is blocking. Other work just needs to be done by morning. The Message Batches API is built for the second kind. You submit many independent requests together, the API processes them asynchronously with **50% cost savings** compared with standard calls, and you collect the results later. Many batches finish well within the window, but processing can take **up to 24 hours** and there is **no guaranteed latency SLA**.
 
 ### Matching workload to API
 
-- **Batch**: Ledgerline's nightly backlog of 40,000 invoices; re-classifying last quarter's documents after a schema change; generating evaluation outputs for a test set.
+- **Batch**: Ledgerline's nightly backlog of 40,000 invoices; re-classifying last quarter's documents after a schema change; overnight reports, weekly audits, and nightly test generation.
 - **Synchronous**: an urgent single invoice a clerk is waiting on; a pre-merge check that blocks a pull request; anything in a live chat.
 
 The deciding question is "is someone or something blocked waiting for this result?" If yes, the cost saving is not worth an unbounded wait.
+
+### Sizing submission frequency to an SLA
+
+If documents trickle in all day and you batch them, a document's total delay is *time waiting for the next submission* plus *batch processing time*. Plan for the worst case of 24 hours of processing. With a 30-hour delivery SLA, the waiting part must stay under 6 hours, and leaving headroom for collecting results and loading them, submitting every 4 hours guarantees the SLA. Submitting once a day would not: a document arriving just after a submission waits almost 24 hours, then may need another 24.
 
 ### Each request stands alone
 
@@ -1132,7 +1137,7 @@ Only these items are resubmitted. The 39,998 successful results are kept. Before
       question: 'Should this extraction workload use the Message Batches API or synchronous Messages calls?',
       a: {
         title: 'Message Batches API',
-        body: 'Lower cost per request and high throughput without managing rate limits per call. Results arrive asynchronously, possibly many hours later.',
+        body: '50% lower cost per request for large volumes. Results arrive asynchronously, possibly many hours later, and each request is a single self-contained call.',
         chooseWhen: 'Nobody is waiting: nightly backlogs, reprocessing archives, evaluation runs, periodic re-scoring.',
       },
       b: {
@@ -1207,7 +1212,8 @@ For w1, note the deadline. Submitting at 19:00 leaves 12 hours, and batches usua
       },
     ],
     review: [
-      { front: 'Message Batches API trade-off in one line?', back: 'Roughly half the cost, but asynchronous: results within up to 24 hours with no latency SLA.' },
+      { front: 'Message Batches API trade-off in one line?', back: '50% cost savings, but asynchronous: processing can take up to 24 hours and there is no latency SLA.' },
+      { front: 'Documents arrive continuously and must be delivered within 30 hours. How often should you submit batches?', back: 'Often enough that waiting time plus a worst-case 24-hour batch stays under 30 hours with headroom, e.g. every 4 hours. Once a day can miss the SLA.' },
       { front: 'Why can’t a batch request run an agentic tool loop?', back: 'Each request is a single call with one response; there is no client step between turns to run the tool and return its result.' },
       { front: 'How do you recover a partially failed batch?', back: 'Join results on custom_id, fix the failure cause, and resubmit only the failed custom_ids.' },
     ],
@@ -1215,7 +1221,7 @@ For w1, note the deadline. Submitting at 19:00 leaves 12 hours, and batches usua
     notes: [
       {
         date: NOTE_DATE,
-        text: 'Batch limits and details are version-sensitive: discount size, maximum requests and bytes per batch, allowed custom_id characters and length, how long results remain downloadable, and which features (for example, prompt caching) combine with batches. Verify against the current Message Batches API docs.',
+        text: 'The exam guide states the 50% savings, the up-to-24-hour window, custom_id correlation, and the lack of multi-turn tool calling. Operational limits (maximum requests and bytes per batch, allowed custom_id characters and length, how long results stay downloadable) are not in the guide and may change; check the current Message Batches API docs before relying on them.',
       },
     ],
   },
@@ -1237,11 +1243,11 @@ For w1, note the deadline. Submitting at 19:00 leaves 12 hours, and batches usua
       { term: 'Verification pass', definition: 'A follow-up pass that re-checks each candidate finding against the source and records a verdict and confidence used for routing.' },
     ],
     learningPoints: [
-      'Explain why self-review in the same context is weak: the generator’s reasoning is still in context and biases it toward agreement.',
-      'Use an independent instance, given only the artifact and the criteria, to review generated work.',
-      'Split large reviews into per-file local passes plus a separate cross-file integration pass to avoid attention dilution.',
-      'Add a verification pass that checks each candidate finding against the code before it is posted.',
-      'Route findings by verification confidence only after calibrating that confidence against labeled outcomes.',
+      'Explain why self-review in the same session is weak: the generator’s reasoning is still in context, so it is less likely to question its own decisions.',
+      'Use a second, independent instance without the generator’s reasoning context to review generated code; it catches subtle issues that self-review instructions or extended thinking miss.',
+      'Split large multi-file reviews into focused per-file passes for local issues plus a separate integration pass for cross-file data flow, avoiding attention dilution and contradictory findings.',
+      'Run a verification pass in which the model reports a confidence alongside each finding, so findings can be routed (post, human review, drop).',
+      'Make that routing calibrated: set confidence thresholds by comparing them with labeled outcomes on a sample.',
       'Pass prior findings to re-runs so they report only new or unresolved issues.',
     ],
     concept: `People are poor proofreaders of their own writing because they read what they meant, not what they wrote. A model reviewing its own work in the **same conversation** has the same problem, more strongly: its earlier reasoning ("I used a map here because keys are unique") is still in context, and it tends to agree with it. Self-review catches some typos, but it is a weak check on the decisions themselves.
@@ -1250,9 +1256,11 @@ For w1, note the deadline. Submitting at 19:00 leaves 12 hours, and batches usua
 
 An **independent reviewer** is a separate call or session given only what a reviewer should see: the diff or document, the requirements, and the review criteria. It has not seen the generator's reasoning, so it has to evaluate the output on its own merits. In a CI pipeline this means the job that reviews a PR should not be the session that wrote the code.
 
+Two tempting substitutes do not get you there. A self-review *instruction* ("now be highly critical of your code") runs in the same context that holds the original reasoning. **Extended thinking** gives the generator more reasoning, but that reasoning still starts from its own earlier decisions. An independent instance, without that context, is more effective at catching subtle issues than either.
+
 ### Multiple passes for large changes
 
-One prompt containing 40 changed files asks the model to hold everything at once. Attention is spread thin: obvious issues in file 31 get missed, and findings become shallow. Split the work:
+One prompt containing 40 changed files asks the model to hold everything at once. Attention is spread thin: obvious issues in file 31 get missed, findings become shallow, and the same construct can be flagged in one file and passed in another. Split the work:
 
 1. **Per-file local passes**: one pass per file (these can run in parallel), focused on bugs visible within that file.
 2. **A cross-file integration pass**: given summaries of each file's interfaces and changes, look for problems *between* files, such as a renamed field still read under the old name elsewhere, or a changed function signature with stale callers.
@@ -1261,7 +1269,7 @@ Local passes are good at depth; the integration pass is good at connections. Nei
 
 ### Verification and routing
 
-A **verification pass** re-checks each candidate finding against the code: is the line real, does the claimed failure actually occur, is it inside the criteria (lesson 4.1)? It can output a verdict and a confidence. Use that confidence to **route**: high, post automatically; middle, send to a human; low, drop. Self-reported confidence is not automatically meaningful, so set thresholds by comparing it to labeled outcomes on a sample, and re-check the calibration over time.
+A **verification pass** re-checks each candidate finding against the code: is the line real, does the claimed failure actually occur, is it inside the criteria (lesson 4.1)? Have it self-report a verdict and a confidence alongside each finding. Use that confidence to **route**: high, post automatically; middle, send to a human; low, drop. Self-reported confidence is not automatically meaningful, so set thresholds by comparing it to labeled outcomes on a sample, and re-check the calibration over time.
 
 On re-runs, pass the previous findings in so the reviewer reports only new or unresolved issues instead of repeating itself.
 
