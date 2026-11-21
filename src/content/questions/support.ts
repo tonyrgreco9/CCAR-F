@@ -536,7 +536,7 @@ The system prompt says nothing about either tool. What should the team change fi
       },
       {
         id: 'c',
-        text: 'Rewrite both descriptions: what each does (live transfer now vs. a call at a later time), when to use each, required inputs, and when to use the other.',
+        text: 'Rewrite both descriptions: live transfer now vs. a call later, when to use each, inputs, and the other tool.',
         correct: true,
         whyItWorks: 'The model chooses between tools mainly from their descriptions. Stating that one is an immediate live handoff and the other books a future phone call, when each applies, and pointing each at the other gives the model a clear basis for every phrasing of the request.',
         supportingClue: 'The definitions are "Hands the customer over" and "Arranges contact with the customer", which say nothing about timing, so "talk to someone now" matches both.',

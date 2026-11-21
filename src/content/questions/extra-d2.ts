@@ -41,7 +41,7 @@ export const questions: Question[] = [
       },
       {
         id: 'd',
-        text: 'Reword the system-prompt instruction around the situation it was meant for (status or delivery questions), not the word "order".',
+        text: 'Reword the system-prompt instruction around the situation it targets (status questions), not the word "order".',
         correct: true,
         whyItWorks: 'The instruction ties the keyword "order" to an order lookup, creating an unintended tool association that overrides the well-written descriptions. Rewording it to describe the situation removes the trigger and lets the descriptions do their job.',
         supportingClue: 'Messages that avoid the word "order" route correctly, and the system prompt says "Whenever the customer mentions an order, look the order up".',
@@ -66,7 +66,7 @@ export const questions: Question[] = [
     options: [
       {
         id: 'a',
-        text: 'Split it into purpose-specific tools (extract statistics, summarize, check a claim), each with its own input and a defined output structure.',
+        text: 'Split it into purpose-specific tools for statistics, summaries, and claim checks, each with a defined output.',
         correct: true,
         whyItWorks: 'Each job gets its own contract: statistics come back as value, unit, and quote; summaries are bounded text; claim checks return supported, contradicted, or not found with the passage. The model picks the tool for the job, and downstream agents can rely on the shape.',
         supportingClue: 'One tool does three different jobs and always returns free text, so verdicts and figures arrive in unusable forms.',
@@ -133,7 +133,7 @@ P-4471 means the item was delivered more than 30 days ago. The refund service ha
       },
       {
         id: 'b',
-        text: 'Return a business error marked `retriable: false` with a customer-friendly explanation of the rule (e.g. delivered 41 days ago; returns accepted within 30 days).',
+        text: 'Return a business error with `retriable: false` and a customer-friendly explanation of the rule that applied.',
         correct: true,
         whyItWorks: 'The non-retryable flag stops the wasted retries, and a customer-friendly explanation produced by the service that owns the policy lets the agent give an accurate, understandable answer instead of a code or a fake "technical problem".',
         supportingClue: 'The agent retries policy refusals and relays a raw code, while a clear policy refusal is an acceptable final answer.',
@@ -253,7 +253,7 @@ P-4471 means the item was delivered more than 30 days ago. The refund service ha
       },
       {
         id: 'c',
-        text: 'Replace `fetch_url` with a `load_filing` tool that accepts only filing-store URLs or IDs and rejects anything else with a validation error.',
+        text: 'Replace `fetch_url` with a `load_filing` tool that validates the URL is in the filing store and rejects others.',
         correct: true,
         whyItWorks: 'A constrained alternative keeps exactly the capability the role needs (opening filings on demand) and removes the rest: outside pages and internal endpoints are rejected at the tool, so the agent cannot drift into the web search agent\'s job.',
         supportingClue: 'All legitimate documents live at one store URL pattern, while the generic tool let the agent open news sites and an admin URL.',
@@ -305,7 +305,7 @@ P-4471 means the item was delivered more than 30 days ago. The refund service ha
       },
       {
         id: 'c',
-        text: 'Keep the configuration; rename and describe the snippets tool (e.g. `search_personal_snippets`, with what it covers and when not to use it).',
+        text: 'Keep the setup; rename and describe the snippets tool so its scope and boundaries are clear.',
         correct: true,
         whyItWorks: 'All configured servers\' tools are already available simultaneously, so no merging is needed. The actual problem is a vague tool competing with the design-docs tools; a distinct name and a description with scope and boundaries fix the misrouting.',
         supportingClue: '`/mcp` lists all three servers connected, and the misrouted tool is named `search` with the description "Search."',
@@ -339,7 +339,7 @@ P-4471 means the item was delivered more than 30 days ago. The refund service ha
     options: [
       {
         id: 'a',
-        text: 'Move the code-intelligence server from `.mcp.json` into each engineer\'s `~/.claude.json` so it loads as a personal server.',
+        text: 'Move the code-intelligence server out of `.mcp.json` into each engineer\'s `~/.claude.json` so it loads as a personal server.',
         correct: false,
         assumption: 'The tool is ignored because of where the server is configured.',
         refutingFact: '`/mcp` shows the server connected and the tool available; scope controls who gets the server, not which tool the agent prefers.',
@@ -348,7 +348,7 @@ P-4471 means the item was delivered more than 30 days ago. The refund service ha
       },
       {
         id: 'b',
-        text: 'Rewrite the description: it searches all 140 repositories, resolves aliases and re-exports, returns repo, file, line, and usage kind, and is preferred over Grep for caller questions.',
+        text: 'Rewrite the description to explain its cross-repo coverage, alias resolution, returned fields, and when to prefer it over Grep.',
         correct: true,
         whyItWorks: 'The agent chooses between Grep and the MCP tool from what it knows about each. A description that explains the tool\'s wider coverage, alias resolution, and outputs, and when to prefer it over Grep, gives the model a reason to use the more capable tool.',
         supportingClue: 'The tool is connected but described only as "Finds references", while Grep sees just the current checkout.',
@@ -477,7 +477,7 @@ P-4471 means the item was delivered more than 30 days ago. The refund service ha
       },
       {
         id: 'd',
-        text: 'Read `lib/net/index.ts` to list every exported name that reaches `httpRequest`, then Grep the codebase for each of those names.',
+        text: 'Read `lib/net/index.ts` to list its exported names that reach `httpRequest`, then Grep for each name.',
         correct: true,
         whyItWorks: 'Identifying all the wrapper\'s exported names first turns one invisible dependency into a set of concrete search terms; grepping each name finds the real call sites without reading every importer.',
         supportingClue: 'Grep for `httpRequest` finds only the wrapper, which exports functions calling it under other names.',

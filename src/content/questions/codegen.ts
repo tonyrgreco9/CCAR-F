@@ -517,7 +517,7 @@ export const questions: Question[] = [
       },
       {
         id: 'c',
-        text: 'Read the full current file, then Write it back with only the holiday method\'s return value changed, and check the diff.',
+        text: 'Read the full current file, then Write it back with only the holiday method\'s return changed.',
         correct: true,
         whyItWorks: 'When Edit cannot find unique anchor text, Read + Write is the reliable fallback: a fresh Read gives the exact current contents, the Write applies the one change at the right location, and the diff confirms nothing else moved.',
         supportingClue: 'Two Edit attempts failed because the target method is a byte-identical copy whose only unique context is about 120 lines away.',
