@@ -182,7 +182,7 @@ System prompt excerpt: "If a message mentions a refund, check the customer's tra
         stem: 'Two tools, `get_order` and `get_shipment`, are each described as "Returns order information." The model often calls the wrong one. What is the most effective first fix?',
         options: [
           { id: 'a', text: 'Add a system-prompt rule listing which tool to use for each kind of question' },
-          { id: 'b', text: 'Rewrite both descriptions: what each returns, when to use it, and when not to' },
+          { id: 'b', text: 'Rewrite both descriptions: what each returns, when to use it, when not to' },
           { id: 'c', text: 'Lower the temperature so that the model\'s tool choice becomes more consistent' },
           { id: 'd', text: 'Remove `get_shipment` and have `get_order` return shipment data when asked' },
         ],
@@ -388,7 +388,7 @@ o5  isError=true  {"errorCategory":"permission","isRetryable":false,"message":"S
         options: [
           { id: 'a', text: 'Stop and pass the error and case details to its coordinator or escalation path' },
           { id: 'b', text: 'Retry with exponential backoff in case the limit is only a temporary condition' },
-          { id: 'c', text: 'Split the refund into several smaller refunds that each fall under the limit' },
+          { id: 'c', text: 'Split the refund into several smaller refunds that each fall under the agent\'s limit' },
           { id: 'd', text: 'Return an empty result so the coordinator can carry on with its other work' },
         ],
         correct: 'a',
@@ -995,7 +995,7 @@ Task: understand how ShipmentRetryPolicy is configured and add a max-attempts gu
         id: 'c2',
         stem: 'Edit fails with "old_string matches 3 locations." You want to change only one of them. What should you do?',
         options: [
-          { id: 'a', text: 'Retry the same Edit; the match may resolve once the file is saved' },
+          { id: 'a', text: 'Retry the same Edit a few times; the match may resolve once the file is saved' },
           { id: 'b', text: 'Set replace_all to true so the Edit applies without the uniqueness error' },
           { id: 'c', text: 'Read the whole file, then Write it back with only that occurrence changed' },
           { id: 'd', text: 'Use Bash with sed to replace the first match and leave the others alone' },
@@ -1008,7 +1008,7 @@ Task: understand how ShipmentRetryPolicy is configured and add a max-attempts gu
         id: 'c3',
         stem: 'Grep for `sendInvoice` finds only its definition, yet invoices are clearly sent from several places. What is the most likely explanation and next step?',
         options: [
-          { id: 'a', text: 'It is called via a wrapper under another name; search each name it exports' },
+          { id: 'a', text: 'It is called via a wrapper under another name; search each exported name' },
           { id: 'b', text: 'Grep missed the callers; read every file in the repository to find them' },
           { id: 'c', text: 'The callers are in compiled or binary files; switch to Glob to find them' },
           { id: 'd', text: 'The function is defined but never used; delete it and see what tests break' },
