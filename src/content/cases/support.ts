@@ -29,22 +29,22 @@ You are the architect asked to fix these without lowering first-contact resoluti
       options: [
         {
           id: 'a',
-          text: 'Retry issue_refund automatically up to three times with backoff.',
+          text: 'Retry issue_refund automatically up to three times with exponential backoff, since the timeout most likely came from migration load.',
           consequence: 'If the first call actually succeeded, each retry creates another refund, because the endpoint has no idempotency protection. This is exactly how the double refunds finance found arise.',
         },
         {
           id: 'b',
-          text: 'Look up RF-30418 with lookup_transaction; confirm the refund if it exists, and retry only if nothing was recorded.',
+          text: 'Check RF-30418 with lookup_transaction, confirm the refund if it is recorded, and retry only if no refund exists.',
           consequence: 'The unknown outcome becomes known within seconds. The customer gets a correct answer in the same chat, and a retry happens only when it cannot double-pay.',
         },
         {
           id: 'c',
-          text: 'Escalate every refund timeout to a human with the reference attached.',
+          text: 'Escalate every refund timeout to a human with the transaction reference attached, so the agent never touches an unconfirmed refund.',
           consequence: 'No double refunds, but routine refunds pile up in the human queue during the migration load, and first-contact resolution drops for cases the agent could close itself.',
         },
         {
           id: 'd',
-          text: 'Tell the customer the refund failed and ask them to try again later.',
+          text: 'Tell the customer the refund did not go through, log the timeout under RF-30418, and ask them to return once the gateway is stable.',
           consequence: 'The customer may be told a successful refund failed; when they return, a second refund could be issued, and satisfaction suffers either way.',
         },
       ],
@@ -59,17 +59,17 @@ Checking status by reference first resolves the uncertainty. Note how the answer
       options: [
         {
           id: 'a',
-          text: 'Strengthen the prompt: move the rule to the top, in capitals, with an example of refusing an insistent customer.',
+          text: 'Strengthen the system prompt: move the rule to the top in capitals and add few-shot examples of refusing insistent customers.',
           consequence: 'Violations fall but do not stop, because prompt rules are followed probabilistically; insistent customers will still occasionally get changes made on unverified accounts.',
         },
         {
           id: 'b',
-          text: 'Add a required identity_verified boolean to each tool and block calls where the model sets it to false.',
+          text: 'Add a required identity_verified boolean to issue_refund, apply_credit, and change_plan, and reject any call where the model sets it to false.',
           consequence: 'The gate checks a value the model writes. When a customer claims to have verified elsewhere, the model can set the flag to true and the gate passes.',
         },
         {
           id: 'c',
-          text: 'Add a PreToolUse hook on issue_refund, apply_credit, and change_plan that checks the verification status application code recorded from get_customer for that customer ID.',
+          text: 'Add a PreToolUse hook on account-changing tools that checks the verification status recorded by application code from get_customer.',
           consequence: 'Every account-changing call is checked deterministically against authoritative state the model cannot alter, while verified customers continue to be served end to end.',
         },
       ],
@@ -84,17 +84,17 @@ A hook alone is not enough if it trusts the wrong data: a model-supplied \`ident
       options: [
         {
           id: 'a',
-          text: 'A free-text summary written by the agent, as today, but with an instruction to be thorough.',
+          text: 'A free-text summary written by the agent, as today, but with a prompt checklist telling it to mention amounts, references, and the reason.',
           consequence: 'Summaries stay inconsistent; some will omit the $95 refund or its reference, and humans will keep re-reading transcripts and occasionally repeat refunds.',
         },
         {
           id: 'b',
-          text: 'A structured payload: customer ID and verification status, actions taken with amounts and references (RF-30502, $95), the escalation reason (cap exceeded), and the decision needed.',
+          text: 'Structured fields: customer ID and verification status, actions taken (RF-30502, $95), the reason (cap exceeded), and the decision needed.',
           consequence: 'The human sees who the customer is, what money has moved, and what to decide, so they can act without re-reading the chat or re-asking the customer, and duplicate refunds stop.',
         },
         {
           id: 'c',
-          text: 'The full transcript plus the agent\'s self-rated confidence and a sentiment score.',
+          text: 'The full transcript, so nothing is lost to summarization, plus the agent\'s self-rated confidence and a customer sentiment score for triage.',
           consequence: 'The human has all the raw text but still has to dig out what was done; the confidence and sentiment numbers do not tell them what money has already moved.',
         },
       ],
@@ -109,22 +109,22 @@ Free text leaves completeness to chance. A raw transcript is the thing humans al
       options: [
         {
           id: 'a',
-          text: 'Summarize more often, so each summary covers fewer turns.',
+          text: 'Summarize more often, so each summary covers fewer turns and the amounts and invoice numbers from recent turns are compressed less.',
           consequence: 'Exact values pass through more compression steps and can drift further; the underlying loss of amounts and IDs continues.',
         },
         {
           id: 'b',
-          text: 'Keep a structured case-facts block (customer ID, verification status, invoice IDs, amounts, transaction references, actions taken) outside the summarized history and include it in every request.',
+          text: 'Keep a case-facts block (customer and invoice IDs, verification status, amounts, references) outside the summarized history, sent each turn.',
           consequence: 'Critical values stay exact however long the chat runs, the agent stops re-asking for verification, and summarization can still compress the conversational filler.',
         },
         {
           id: 'c',
-          text: 'Switch to a larger context window and stop summarizing.',
+          text: 'Switch to a model with a larger context window and stop summarizing, so the agent always sees the original turns with their exact values.',
           consequence: 'Fewer summaries for a while, but long chats still eventually need compression, cost rises, and key facts can still be lost in the middle of a very long context.',
         },
         {
           id: 'd',
-          text: 'Ask the customer to restate amounts and invoice numbers whenever the agent needs them late in a chat.',
+          text: 'Have the agent ask the customer to restate amounts and invoice numbers whenever it needs them late in a chat, rather than trusting a summary.',
           consequence: 'Customers repeat themselves more, satisfaction drops, and the agent still confidently quotes wrong values when it does not realise it is unsure.',
         },
       ],

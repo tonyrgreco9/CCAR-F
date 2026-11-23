@@ -25,22 +25,22 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: 'Keep `po_number` required and add a regex pattern matching Harrowgate’s PO format.',
+          text: 'Keep `po_number` required and add a regex pattern matching Harrowgate’s PO format, so invoice numbers and other stray values are rejected.',
           consequence: 'Fabrications shift to PO-shaped strings that pass the pattern; "PO-000000" already matches. The ERP keeps matching some PO-less bills to unrelated open POs.',
         },
         {
           id: 'b',
-          text: 'Make `po_number` nullable, describe null as "no PO number appears in the document", and let null-PO bills follow the ERP’s non-PO approval path.',
+          text: 'Make `po_number` nullable, define null as "no PO number appears in the document", and send null-PO bills to the ERP’s non-PO path.',
           consequence: 'The model can report absence truthfully, so PO-less invoices arrive with null and are routed to the right approval path; fabricated PO numbers largely disappear.',
         },
         {
           id: 'c',
-          text: 'Keep the field required and retry extraction with a validation error whenever the PO number looks suspicious.',
+          text: 'Keep the field required and retry extraction with a specific validation error whenever the PO number fails a lookup against open POs.',
           consequence: 'For PO-less invoices there is nothing to find, so each retry produces another invented value at extra cost until one looks plausible enough to pass.',
         },
         {
           id: 'd',
-          text: 'Remove `po_number` from the schema and have reviewers enter PO numbers manually.',
+          text: 'Remove `po_number` from the schema and have reviewers key in PO numbers manually, since a field that is not extracted cannot be fabricated.',
           consequence: 'Reviewers re-key a value the model extracts correctly on 89% of invoices, consuming review budget that is about to be capped.',
         },
       ],
@@ -56,22 +56,22 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: 'Retry every failed record up to three times with "The output was invalid; try again", then send it to review.',
+          text: 'Retry every failed record up to three times with "The output was invalid; try again", then send whatever still fails to human review.',
           consequence: 'Format errors are sometimes fixed by luck, but absent-information failures generate fabrications that eventually pass, and spend rises with up to three blind retries per failure.',
         },
         {
           id: 'b',
-          text: 'Send every failed record straight to review with no retries, to avoid any risk of the model forcing values.',
+          text: 'Send every failed record straight to review with no retries, so the model is never pressured into forcing values that pass the validation checks.',
           consequence: 'Safe, but reviewers spend scarce time reformatting dates and fixing misreads the model could have corrected automatically, blowing the 15% review budget.',
         },
         {
           id: 'c',
-          text: 'Retry once, with the document, the prior JSON, and the specific error, only for failures whose value is present in the source (format errors, sum mismatches on legible scans); route absent or source-wrong values to review.',
+          text: 'Retry once, with the document, prior output, and exact error, only if the value is in the source; send absent or source-wrong values to review.',
           consequence: 'Most format and misread failures are fixed automatically on the first retry, while absent values and printed errors go to reviewers instead of being fabricated.',
         },
         {
           id: 'd',
-          text: 'Tell the model to adjust line items or totals as needed so that the record passes validation, then post it.',
+          text: 'Tell the model to adjust line items or totals as needed so the record passes validation, then post it, since small rounding gaps are common.',
           consequence: 'Records pass validation with altered amounts, hiding both misreads and genuine supplier arithmetic errors, which is exactly the wrong-but-valid outcome the constraints forbid.',
         },
       ],
@@ -88,17 +88,17 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: 'Send overnight documents in rolling Message Batches keyed by document ID as `custom_id`, process treasury uploads synchronously, and resubmit only failed IDs, chunking oversized contracts into page ranges.',
+          text: 'Batch overnight documents keyed by `custom_id`, keep treasury uploads synchronous, and resubmit only failed IDs, splitting oversized contracts.',
           consequence: 'Batch pricing cuts overnight spend roughly in half within the 36-hour window, treasury keeps sub-minute results, and recovery touches only the 235 failed documents, with chunked contracts reassembled by derived IDs.',
         },
         {
           id: 'b',
-          text: 'Send everything, including treasury uploads, through Message Batches, and resubmit the whole batch whenever any requests fail.',
+          text: 'Send everything, including treasury uploads, through Message Batches for the full discount, and resubmit the whole batch whenever any requests fail.',
           consequence: 'Treasury uploads sometimes wait far longer than a minute, missing payment runs, and resubmitting entire batches pays twice for thousands of good results while the oversized contracts fail again.',
         },
         {
           id: 'c',
-          text: 'Keep everything synchronous as in the pilot, but raise concurrency and retry failed requests immediately.',
+          text: 'Keep everything synchronous as in the pilot, raise concurrency to clear the overnight queue faster, and retry failed requests immediately.',
           consequence: 'Both deadlines are met but spend stays at the pilot’s level, and oversized contracts fail on every immediate retry.',
         },
       ],
@@ -114,22 +114,22 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: 'Adopt the uniform 10% random sample immediately, since 97% overall accuracy is comfortably high.',
+          text: 'Adopt the uniform 10% random sample now, since 97% overall accuracy on 2,000 labelled documents is comfortably above the target.',
           consequence: 'If handwritten remittances run far below the aggregate, as pilot reviewers suspected, 90% of their errors go unreviewed and wrong payments follow.',
         },
         {
           id: 'b',
-          text: 'Route records to review using the model’s self-reported confidence, skipping review whenever every field is above 0.9.',
+          text: 'Route records by the model’s self-reported confidence, sending to review any record where a field scores below 0.9, and skipping the rest.',
           consequence: 'Uncalibrated scores let confidently wrong fields skip review, and nothing shows whether 0.9 means the same thing on typed invoices and handwritten remittances.',
         },
         {
           id: 'c',
-          text: 'Keep 100% review and ask Harrowgate to raise the review budget until accuracy reaches 99% overall.',
+          text: 'Keep 100% review and ask Harrowgate to raise the review budget until overall accuracy reaches 99%, then cut to the 10% random sample.',
           consequence: 'The contract’s headcount cap is breached, and even 99% overall could still hide a weak small segment.',
         },
         {
           id: 'd',
-          text: 'Measure accuracy per document type and payment-critical field on stratified samples, cut review only for segments that meet target, and keep a stratified audit sample running afterwards.',
+          text: 'Measure accuracy per document type and critical field on stratified samples, reduce review only where targets are met, and keep auditing.',
           consequence: 'Typed invoices, which meet target, drop to light audit and free most of the budget; handwritten remittances, measured at about 70%, keep full review; ongoing stratified audits catch drift from new templates.',
         },
       ],

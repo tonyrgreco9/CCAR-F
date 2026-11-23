@@ -29,17 +29,17 @@ You are the platform engineer asked to redesign the pipeline over the next sprin
       options: [
         {
           id: 'a',
-          text: 'Keep free text, add a strict format instruction to the prompt ("one finding per line: path:line | severity | message"), and harden the regex parser.',
+          text: 'Keep free text, add a strict format instruction to the prompt ("one finding per line: path:line | severity | message") with examples, and harden the regex parser.',
           consequence: 'Failures drop for a while, but formats still drift on unusual diffs. Each new variation needs another regex patch, and the merge gate keeps failing open at random.',
         },
         {
           id: 'b',
-          text: 'Request JSON output constrained by a findings schema, then validate each finding semantically (line inside a changed hunk, fields holding the right content) and re-prompt for failures with the specific error.',
+          text: 'Use schema-constrained JSON output, check each finding against the diff (line inside a changed hunk), and re-prompt failures with the specific error.',
           consequence: 'Parse failures disappear. The validation step catches the remaining well-formed but wrong values, such as lines outside the diff, and fixes most of them with a targeted retry. The gate reads severity reliably.',
         },
         {
           id: 'c',
-          text: 'Post the raw output as a single summary comment and have the merge gate search that comment for the word "blocker".',
+          text: 'Post the raw output as one summary comment so nothing can fail to parse, and have the merge gate block whenever the comment contains the word "blocker".',
           consequence: 'Nothing fails to parse, but authors lose inline anchoring and the gate trips on any mention of "blocker", including "no blockers found". Developers start ignoring the summary.',
         },
       ],
@@ -54,17 +54,17 @@ It does not remove *semantic* errors, though. A finding can be valid JSON with a
       options: [
         {
           id: 'a',
-          text: 'Scope context from the diff outward (search for callers and definitions of changed symbols), run per-file review passes, then a separate integration pass over changed interfaces and per-file summaries.',
+          text: 'Gather context from the diff outward (callers and definitions of changed symbols), run per-file passes, then an integration pass over changed interfaces.',
           consequence: 'Each file gets full attention, and the integration pass catches the renamed-key breakage across modules. Targeted search replaces open-ended exploration, cutting tool calls and tokens sharply.',
         },
         {
           id: 'b',
-          text: 'Keep a single pass but give it a larger context budget and an instruction to "review every file equally thoroughly and check cross-module consistency".',
+          text: 'Keep one pass with a larger context budget, let it explore the repository first, and instruct it to review every file equally and check cross-module consistency.',
           consequence: 'Cost rises further, later files still get thin coverage because attention is spread across 60 diffs plus exploration output, and cross-module breaks are still easy to miss.',
         },
         {
           id: 'c',
-          text: 'Send large PRs to the Message Batches API overnight to halve their cost, and let authors merge without waiting for review on PRs over 30 files.',
+          text: 'Send PRs over 30 files to the Message Batches API at half the cost, letting authors merge without waiting and addressing findings in a follow-up PR.',
           consequence: 'Cost per large PR falls, but the riskiest PRs merge unreviewed, and batch results arrive with no latency guarantee, after the code is already merged.',
         },
       ],
@@ -79,17 +79,17 @@ Per-file passes restore depth, and a dedicated integration pass looks at what cr
       options: [
         {
           id: 'a',
-          text: 'Resume the previous run\'s Claude Code session by its session ID so the model remembers what it already posted.',
+          text: 'Store the session ID as an artifact and resume the previous run\'s Claude Code session, so the model remembers what it posted and what was discussed.',
           consequence: 'The resume fails or starts empty because the earlier runner and its session files are gone. Even on a persistent host, the old session would reason over stale code from earlier commits.',
         },
         {
           id: 'b',
-          text: 'Delete all earlier bot comments at the start of each run and post the full new set.',
+          text: 'Delete all earlier bot comments at the start of each run and post the full new set, so the PR only ever shows findings for the latest commit.',
           consequence: 'The PR shows only the latest findings, but the author\'s discussion threads are destroyed on every push and open issues reappear as if they were new.',
         },
         {
           id: 'c',
-          text: 'Save each run\'s validated findings as an artifact with stable IDs; on re-runs, pass them into the prompt with the current diff and ask for only new or still-unresolved issues, marking fixed ones.',
+          text: 'Save validated findings with stable IDs as an artifact; on re-runs, pass them in with the current diff and report only new or unresolved issues.',
           consequence: 'Each push adds only new findings and marks resolved ones, existing threads stay intact, and authors can see progress. Prompt size grows only by the compact findings list.',
         },
       ],
@@ -104,17 +104,17 @@ Passing the structured findings from the previous run as explicit input gives a 
       options: [
         {
           id: 'a',
-          text: 'Move both the pre-merge review and the nightly scan to the Message Batches API, polling every 30 seconds so the pre-merge check stays responsive.',
+          text: 'Move both the pre-merge review and the nightly scan to the Message Batches API, polling for results every 30 seconds so the pre-merge check stays responsive.',
           consequence: 'Costs fall, but pre-merge checks now take unpredictable lengths of time, sometimes hours, because polling does not speed up batch processing. Developers stop waiting and merge around the gate.',
         },
         {
           id: 'b',
-          text: 'Move the nightly scan to the Message Batches API with one request per module keyed by custom_id, keep the pre-merge check synchronous, and on failures resubmit only the failed custom_ids after fixing their cause.',
+          text: 'Batch the nightly scan with a custom_id per module, keep the pre-merge check synchronous, and resubmit only failed IDs once their cause is fixed.',
           consequence: 'The largest cost line drops by about half. The blocking check keeps its latency. Failed items, such as oversized modules that must be chunked first, are recovered without paying again for the thousands that succeeded.',
         },
         {
           id: 'c',
-          text: 'Keep everything synchronous and cap the pre-merge review at the 10 largest files per PR to reduce tokens.',
+          text: 'Keep everything synchronous and cap the pre-merge review at the 10 largest files per PR, since the largest files carry most of the token cost.',
           consequence: 'Savings are modest and come from the wrong place: small high-risk changes, like the renamed config key, go unreviewed while the expensive nightly scan is unchanged.',
         },
       ],

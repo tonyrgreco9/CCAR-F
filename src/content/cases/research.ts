@@ -24,17 +24,17 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: 'Keep the same plan but tell each subagent to also cover any other countries it comes across.',
+          text: 'Keep the same plan but tell each subagent to also cover any other European markets and sub-questions it comes across while searching.',
           consequence: 'Subagents drift beyond their tasks and duplicate each other, and coverage of the other markets and of the four sub-questions depends on chance.',
         },
         {
           id: 'b',
-          text: 'Have the coordinator first map the question into its four sub-questions and the markets that matter, explore briefly, then delegate scoped tasks and check results against that map before writing.',
+          text: 'Have the coordinator map the four sub-questions and key markets, delegate scoped tasks, and check results against that map before writing.',
           consequence: 'The plan reflects the client\'s actual question, gaps found after the first round get targeted follow-ups, and runs stay bounded by a coverage check.',
         },
         {
           id: 'c',
-          text: 'Replace the coordinator with a fixed pipeline of one subagent per EU country, run on every question.',
+          text: 'Replace the coordinator with a fixed pipeline that runs one subagent per EU country on every question, so that no market can ever be skipped again.',
           consequence: 'Many low-value subagents run each time, cost jumps, and the revenue-model and policy sub-questions still have no dedicated owner.',
         },
       ],
@@ -49,22 +49,22 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: '"Analyze the documents discussed earlier and report capacity figures." The agent can ask the coordinator if it needs more.',
+          text: '"Analyze the documents discussed earlier and report capacity figures." The agent can ask the coordinator if it needs anything more.',
           consequence: 'The subagent has no view of "earlier," does not know which files are confidential, and returns figures without the provenance the report needs.',
         },
         {
           id: 'b',
-          text: 'The full coordinator transcript so far, so the subagent has every piece of context.',
+          text: 'The full coordinator transcript so far, including the analyst\'s upload messages, so the subagent has every piece of context it might need.',
           consequence: 'The subagent receives a long, mostly irrelevant history; cost rises and its attention on the actual capacity task drops.',
         },
         {
           id: 'c',
-          text: 'The specific sub-question, the file list with each file marked confidential or public, the time range (through 2030), and a required output format: each figure with document, page, publication date, and quote.',
+          text: 'The sub-question, each file labelled confidential or public, the range through 2030, and per-figure output of document, page, date, and quote.',
           consequence: 'The subagent knows exactly what to do and returns findings that carry the provenance and confidentiality labels the writer needs.',
         },
         {
           id: 'd',
-          text: 'Only the sub-question; the subagent can find the files and decide the output format itself.',
+          text: 'Only the capacity sub-question and the 2030 horizon; the subagent can discover the files itself and choose whatever output format suits its findings.',
           consequence: 'The subagent may miss or mislabel the confidential memos and return free-form text that the writer cannot cite reliably.',
         },
       ],
@@ -79,17 +79,17 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: 'The subagent returns a partial result: the timeout, the completed and unattempted queries, the two documents, and a suggested alternative source. The coordinator retries once or re-scopes, and if the gap remains the report says Italian rules "could not be fully checked."',
+          text: 'The subagent returns the two documents with the timeout and unattempted queries; the coordinator retries or re-scopes, and the report marks any gap.',
           consequence: 'Useful evidence is kept, recovery is attempted with full knowledge of what is missing, and the report states the gap honestly.',
         },
         {
           id: 'b',
-          text: 'The subagent returns an empty success so the run continues smoothly.',
+          text: 'The subagent treats the timeout as an empty result and returns success, so one flaky portal does not stall the run or block the other subagents\' work.',
           consequence: 'The report again claims there were no Italian rule changes, repeating the false negative that got the first draft rejected.',
         },
         {
           id: 'c',
-          text: 'The coordinator aborts the run and tells the analyst to try again later.',
+          text: 'The coordinator aborts the run and alerts the analyst, since a report built on incomplete regulatory evidence could mislead the fund\'s investment team.',
           consequence: 'All other completed research is discarded and the 48-hour deadline is put at risk over one partly failed subtask.',
         },
       ],
@@ -104,23 +104,23 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: 'Use 38 GW, since the memo is newer and was supplied by the client.',
+          text: 'Use 38 GW, since the memo is newer, was supplied by the client, and comes from due diligence rather than from a published industry outlook.',
           consequence: 'A credible public figure disappears, and the analyst never sees that the sources disagree.',
         },
         {
           id: 'b',
-          text: 'Use the midpoint, 45 GW, citing both sources.',
+          text: 'Use the midpoint, 45 GW, and cite both sources, so the report gives the client one planning figure that reflects both views of the market.',
           consequence: 'The report cites two sources for a figure neither contains, hiding the disagreement and misattributing the number.',
         },
         {
           id: 'c',
-          text: 'Keep both values, each with its source, confidentiality label, publication date, and scope, flagged as a conflict, with a note that the gap may partly reflect the seven months between them.',
+          text: 'Report both figures with source, confidentiality label, date, and scope, flagged as a conflict the seven-month gap may partly explain.',
           consequence: 'The analyst sees both figures, their provenance, and a possible explanation, and decides how to present them to the client.',
         },
         {
           id: 'd',
-          text: 'Drop both and state that 2030 capacity is uncertain.',
-          consequence: 'The client loses two useful data points, and the report gives no basis for its uncertainty statement.',
+          text: 'Drop both figures and state that 2030 capacity is uncertain, since two credible sources covering the same markets disagree by over a third.',
+          consequence: 'The client loses two useful, cited data points, and the analyst never gets to decide how to present the disagreement, which the constraints reserve for them.',
         },
       ],
       best: 'c',

@@ -60,7 +60,7 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: 'Start in plan mode: Claude compares both designs from the real code read-only, and the plan, including any `infra/` change, is reviewed before edits.',
+          text: 'Use plan mode: Claude compares both designs read-only against the real code, and the plan, including any `infra/` change, is reviewed first.',
           consequence: 'The open architectural decision is made explicitly with evidence from the real code, the infra change goes through the required review, and implementation afterwards is well specified.',
         },
         {
@@ -70,7 +70,7 @@ export const caseStudy: CaseStudy = {
         },
         {
           id: 'c',
-          text: 'Ask Claude to implement both designs fully on one branch so the team can compare running code.',
+          text: 'Ask Claude to implement both designs fully, each with its own migration, on one branch so the team can compare real running code before choosing.',
           consequence: 'Two conflicting schema migrations and a speculative infra change are written, most of one implementation is thrown away, and the comparison costs more than the decision.',
         },
       ],
@@ -96,7 +96,7 @@ export const caseStudy: CaseStudy = {
         },
         {
           id: 'c',
-          text: 'Delegate discovery to an Explore subagent that returns a short map of key files and handoffs, and save the map to a notes file.',
+          text: 'Delegate discovery to an Explore subagent that returns a short map of key files and handoffs, saved to a notes file.',
           consequence: 'The verbose reading stays in the subagent\'s context, the main session receives only a compact, accurate map, and the notes file preserves exact names even after compaction.',
         },
       ],
@@ -112,22 +112,22 @@ export const caseStudy: CaseStudy = {
       options: [
         {
           id: 'a',
-          text: 'Ask the authoring session to review its whole diff in one pass with explicit instructions to be thorough about tenancy.',
+          text: 'Ask the authoring session, which knows the design intent best, to review its whole diff in one pass with explicit instructions to check tenancy.',
           consequence: 'The author shares its own assumptions about tenancy, and one pass over 31 files tapers in depth, repeating the conditions behind last quarter\'s missed bug.',
         },
         {
           id: 'b',
-          text: 'Run one review in a fresh instance with all 31 files in a single prompt and the instruction "only report high-confidence issues".',
+          text: 'Run one review in a fresh instance with all 31 files and the requirements in a single prompt, instructed to report only high-confidence issues.',
           consequence: 'Independence helps, but a single pass dilutes attention across 31 files and a confidence threshold does not define what to look for, so cross-file tenancy leaks can still slip through.',
         },
         {
           id: 'c',
-          text: 'Skip Claude review and rely on human reviewers, since Claude missed a bug last quarter.',
+          text: 'Skip Claude review for this feature and rely on two human reviewers with a tenancy checklist, since a Claude-reviewed PR shipped a bug last quarter.',
           consequence: 'Humans still review, but the team gives up a cheap, systematic first pass; the earlier miss came from self-review, not from Claude review as such.',
         },
         {
           id: 'd',
-          text: 'An independent instance (diff and requirements, no authoring chat) runs per-file passes plus a cross-file pass on patient contact data, with explicit tenancy criteria.',
+          text: 'A fresh instance (diff and requirements only) runs per-file passes plus a cross-file pass tracing patient contact data against tenancy criteria.',
           consequence: 'Each file gets consistent depth, the integration pass follows contact data across the API, job, and web layers, and explicit criteria keep findings focused, giving human reviewers a trustworthy starting point.',
         },
       ],
