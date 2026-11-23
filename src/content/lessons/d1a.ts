@@ -223,7 +223,6 @@ def run_agent(system: str, tools: list, messages: list):
     check: [
       {
         id: '1.1-c1',
-        id: '1.1-c1',
         stem: 'Claude returns one response with three tool_use blocks. How should the loop return the results?',
         options: [
           { id: 'a', text: 'Three user messages, one tool_result each, sent in the order the tools finished' },
@@ -236,7 +235,6 @@ def run_agent(system: str, tools: list, messages: list):
       },
       {
         id: '1.1-c2',
-        id: '1.1-c2',
         stem: 'lookup_invoice times out. What should the loop send back to Claude?',
         options: [
           { id: 'a', text: 'Nothing for that call; send the other results and let Claude notice the gap itself' },
@@ -248,7 +246,6 @@ def run_agent(system: str, tools: list, messages: list):
         why: 'An is_error result keeps the call paired and tells Claude what failed, so it can retry or explain. Empty content is tempting because it keeps the loop going, but it turns an access failure into a false "no invoice" answer.',
       },
       {
-        id: '1.1-c3',
         id: '1.1-c3',
         stem: 'Logs show 8% of conversations end because the loop hit its 30-iteration cap. What is the best first step?',
         options: [
@@ -465,7 +462,6 @@ final report: thorough US analysis; EU and China not mentioned`,
     check: [
       {
         id: '1.2-c1',
-        id: '1.2-c1',
         stem: 'In a hub-and-spoke design, the report writer needs figures that the data analyst found. How do they reach it?',
         options: [
           { id: 'a', text: 'The data analyst sends its figures to the report writer in a direct message' },
@@ -478,7 +474,6 @@ final report: thorough US analysis; EU and China not mentioned`,
       },
       {
         id: '1.2-c2',
-        id: '1.2-c2',
         stem: 'A report about three markets discusses only one. Every subagent completed its task and stayed in scope. Where is the root cause most likely?',
         options: [
           { id: 'a', text: 'The web-researcher prompt did not demand thorough enough research per market' },
@@ -490,7 +485,6 @@ final report: thorough US analysis; EU and China not mentioned`,
         why: 'If every subagent succeeded within its scope, the missing markets were never in scope, and decomposition belongs to the coordinator. A more thorough researcher prompt would only deepen the one market it was given.',
       },
       {
-        id: '1.2-c3',
         id: '1.2-c3',
         stem: 'Which task is the strongest candidate for a single agent rather than a coordinator with subagents?',
         options: [
@@ -693,7 +687,6 @@ async for message in query(prompt=analyst_question, options=options):
     check: [
       {
         id: '1.3-c1',
-        id: '1.3-c1',
         stem: 'Agents are defined correctly, but the coordinator never delegates and does all the work itself. What is the most likely configuration cause?',
         options: [
           { id: 'a', text: 'The subagents\' tools lists are too narrow for the work being delegated' },
@@ -706,7 +699,6 @@ async for message in query(prompt=analyst_question, options=options):
       },
       {
         id: '1.3-c2',
-        id: '1.3-c2',
         stem: 'A subagent must verify claims the coordinator collected from a previous subagent. What should the Task prompt contain?',
         options: [
           { id: 'a', text: 'A pointer, "verify the claims from the previous step", plus the scope' },
@@ -718,7 +710,6 @@ async for message in query(prompt=analyst_question, options=options):
         why: 'Subagents start fresh, so the needed findings and their metadata must be passed explicitly. A pointer to "the previous step" refers to context the subagent never saw, and pasting the whole history wastes context and buries the task.',
       },
       {
-        id: '1.3-c3',
         id: '1.3-c3',
         stem: 'After a long investigation session, you want to try two different fixes, each starting from the full investigation history, without altering the original session. Which fits best?',
         options: [
@@ -938,7 +929,6 @@ options = ClaudeAgentOptions(
     check: [
       {
         id: '1.4-c1',
-        id: '1.4-c1',
         stem: 'Despite a clear prompt instruction, about 1 in 400 conversations issue a refund before identity is verified. What is the most effective fix?',
         options: [
           { id: 'a', text: 'Repeat the rule at the start and end of the system prompt in capital letters' },
@@ -951,7 +941,6 @@ options = ClaudeAgentOptions(
       },
       {
         id: '1.4-c2',
-        id: '1.4-c2',
         stem: 'Which handoff note best lets a human continue the case without rereading the transcript?',
         options: [
           { id: 'a', text: '"Customer upset about billing; please review the chat and help them out."' },
@@ -963,7 +952,6 @@ options = ClaudeAgentOptions(
         why: 'Structured fields tell the human who the customer is, what is already done, and what to do next. A full transcript is complete but makes the human reconstruct all of that, which the handoff is meant to avoid.',
       },
       {
-        id: '1.4-c3',
         id: '1.4-c3',
         stem: 'A customer asks, in one message, for a duplicate-charge refund, a plan downgrade, and an address change. How should the agent proceed?',
         options: [

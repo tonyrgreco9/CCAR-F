@@ -255,7 +255,6 @@ Observed tool outputs:
     check: [
       {
         id: 'k1',
-        id: 'k1',
         stem: 'A support agent occasionally issues refunds above the $150 policy limit even though the limit is stated in its system prompt. What change gives a guarantee that the limit holds?',
         options: [
           { id: 'a', text: 'Repeat the limit in bold at the start and end of the system prompt, with an example.' },
@@ -267,7 +266,6 @@ Observed tool outputs:
         why: 'Only code that runs before the tool executes can guarantee the refund never happens. A PostToolUse hook is also code, but it runs after the money has already moved, and prompt changes or temperature leave compliance probabilistic.',
       },
       {
-        id: 'k2',
         id: 'k2',
         stem: 'One tool returns `"ts": 1763478000` and another returns `"date": "2025-11-18"`. The agent compares them to decide eligibility. Neither backend can be changed or accepts a format option. Where is the most reliable place to fix this?',
         options: [
@@ -530,7 +528,6 @@ Hybrids are common: a fixed outer pipeline with one dynamic step inside, or a dy
     check: [
       {
         id: 'k1',
-        id: 'k1',
         stem: 'A single call reviewing a 50-file diff gives detailed comments on early files and almost none on later ones. What is the most likely cause and fix?',
         options: [
           { id: 'a', text: 'Attention dilution; split into per-file passes plus a cross-file integration pass.' },
@@ -543,7 +540,6 @@ Hybrids are common: a fixed outer pipeline with one dynamic step inside, or a dy
       },
       {
         id: 'k2',
-        id: 'k2',
         stem: 'Which task is the best fit for dynamic adaptive decomposition?',
         options: [
           { id: 'a', text: 'Translating 200 product descriptions into French, then checking each against a glossary.' },
@@ -555,7 +551,6 @@ Hybrids are common: a fixed outer pipeline with one dynamic step inside, or a dy
         why: 'Only the fraud-model investigation has steps that depend on findings. The translation task has two steps but both are known in advance, as are the others, so a fixed pipeline or single call is cheaper and more predictable.',
       },
       {
-        id: 'k3',
         id: 'k3',
         stem: 'A team replaced a three-step extraction pipeline with an orchestrator that plans steps per document. Quality is unchanged, cost rose, and some failures cannot be reproduced. What happened?',
         options: [
@@ -804,7 +799,6 @@ No other files under services/rate-limiter changed.`,
       },
       {
         id: 'k2',
-        id: 'k2',
         stem: 'A resumed session keeps proposing edits to a function that a teammate renamed overnight. What is the best prevention for next time?',
         options: [
           { id: 'a', text: 'Use a model with a larger context window so more history fits on resume.' },
@@ -816,7 +810,6 @@ No other files under services/rate-limiter changed.`,
         why: 'The agent cannot know that a file changed after it was read; its history shows the old version. Naming the changed files and requiring a re-read replaces stale tool results with current ones. Forking copies the same stale history, and a generic "latest code" rule does not tell it what changed.',
       },
       {
-        id: 'k3',
         id: 'k3',
         stem: 'When is starting a new session from a structured summary better than resuming?',
         options: [

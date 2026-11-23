@@ -178,7 +178,6 @@ System prompt excerpt: "If a message mentions a refund, check the customer's tra
     check: [
       {
         id: 'c1',
-        id: 'c1',
         stem: 'Two tools, `get_order` and `get_shipment`, are each described as "Returns order information." The model often calls the wrong one. What is the most effective first fix?',
         options: [
           { id: 'a', text: 'Add a system-prompt rule listing which tool to use for each kind of question' },
@@ -191,7 +190,6 @@ System prompt excerpt: "If a message mentions a refund, check the customer's tra
       },
       {
         id: 'c2',
-        id: 'c2',
         stem: 'Which schema change most directly prevents a model from sending invented status values like "kinda done"?',
         options: [
           { id: 'a', text: 'Mark the `status` field as required in the tool\'s input schema' },
@@ -203,7 +201,6 @@ System prompt excerpt: "If a message mentions a refund, check the customer's tra
         why: 'An enum is part of the schema and lists the only acceptable values, so the model selects one of them. Listing the values in the description helps but is only guidance, and making the field required only ensures something is sent.',
       },
       {
-        id: 'c3',
         id: 'c3',
         stem: 'A tool `ticket_op(op, args)` supports `view`, `comment`, and `close_and_refund`. What is the main reason to split it?',
         options: [
@@ -370,7 +367,6 @@ o5  isError=true  {"errorCategory":"permission","isRetryable":false,"message":"S
     check: [
       {
         id: 'c1',
-        id: 'c1',
         stem: 'A customer lookup tool catches a database connection error and returns `{"customers": []}` with no error flag. What is the main risk?',
         options: [
           { id: 'a', text: 'The agent will retry the lookup in a loop until the database recovers' },
@@ -383,7 +379,6 @@ o5  isError=true  {"errorCategory":"permission","isRetryable":false,"message":"S
       },
       {
         id: 'c2',
-        id: 'c2',
         stem: 'A tool returns isError: true with errorCategory "business" and isRetryable false (refund exceeds the agent\'s limit). What should a subagent do?',
         options: [
           { id: 'a', text: 'Stop and pass the error and case details to its coordinator or escalation path' },
@@ -395,7 +390,6 @@ o5  isError=true  {"errorCategory":"permission","isRetryable":false,"message":"S
         why: 'Business-rule refusals cannot be fixed by retrying (isRetryable is false), and splitting the refund defeats the policy. Propagating structured context lets the party with authority decide.',
       },
       {
-        id: 'c3',
         id: 'c3',
         stem: 'A booking tool rejected a call because of bad input. Which error message best lets the agent recover locally by fixing the call itself?',
         options: [
@@ -595,7 +589,6 @@ A multi-step version works the same way. To make sure metadata is extracted befo
       },
       {
         id: 'c3',
-        id: 'c3',
         stem: 'What does forcing a tool with an input schema guarantee?',
         options: [
           { id: 'a', text: 'The values it extracts will be factually correct for the source document' },
@@ -787,7 +780,6 @@ Observed: agent answers "who calls computeRate?" with Grep on this checkout, ign
     check: [
       {
         id: 'c1',
-        id: 'c1',
         stem: 'A team wants every engineer to get the same database MCP server without anyone committing credentials. What should they do?',
         options: [
           { id: 'a', text: 'Have each engineer add it at user scope with claude mcp add, from a wiki page' },
@@ -800,7 +792,6 @@ Observed: agent answers "who calls computeRate?" with Grep on this checkout, ign
       },
       {
         id: 'c2',
-        id: 'c2',
         stem: 'Claude Code has three MCP servers configured. Which tools can the agent use in a session?',
         options: [
           { id: 'a', text: 'Only the tools from whichever server is listed first in the configuration' },
@@ -812,7 +803,6 @@ Observed: agent answers "who calls computeRate?" with Grep on this checkout, ign
         why: 'Tools from every configured server, in any scope, are discovered when the client connects and are available together (subject to permissions), which is why clear names and descriptions across servers matter.',
       },
       {
-        id: 'c3',
         id: 'c3',
         stem: 'The agent keeps using Bash and curl against an internal API even though an MCP server wraps it. What is the most direct first fix?',
         options: [
@@ -979,7 +969,6 @@ Task: understand how ShipmentRetryPolicy is configured and add a max-attempts gu
     check: [
       {
         id: 'c1',
-        id: 'c1',
         stem: 'You need every test file under `src/` whose name ends in `.spec.ts`. Which tool fits?',
         options: [
           { id: 'a', text: 'Grep for "spec" across all files under `src/`' },
@@ -992,7 +981,6 @@ Task: understand how ShipmentRetryPolicy is configured and add a max-attempts gu
       },
       {
         id: 'c2',
-        id: 'c2',
         stem: 'Edit fails with "old_string matches 3 locations." You want to change only one of them. What should you do?',
         options: [
           { id: 'a', text: 'Retry the same Edit a few times; the match may resolve once the file is saved' },
@@ -1004,7 +992,6 @@ Task: understand how ShipmentRetryPolicy is configured and add a max-attempts gu
         why: 'Read + Write is the reliable fallback when Edit cannot find a unique anchor: the fresh Read keeps everything else intact and the Write applies exactly one change. replace_all would change all three, and sed on the first match may hit the wrong one.',
       },
       {
-        id: 'c3',
         id: 'c3',
         stem: 'Grep for `sendInvoice` finds only its definition, yet invoices are clearly sent from several places. What is the most likely explanation and next step?',
         options: [
