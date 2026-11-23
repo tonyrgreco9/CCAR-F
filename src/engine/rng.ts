@@ -37,3 +37,8 @@ export function newSeed(): string {
   const r = typeof crypto !== 'undefined' && crypto.getRandomValues ? crypto.getRandomValues(new Uint32Array(2)) : [Date.now(), Math.random() * 1e9];
   return `${(r[0] >>> 0).toString(36)}${(Number(r[1]) >>> 0).toString(36)}`;
 }
+
+/** Stable per-item display shuffle: the order varies between items but never changes on refresh. */
+export function displayShuffle<T>(seed: string, items: T[]): T[] {
+  return rng(`display:${seed}`).shuffle(items);
+}

@@ -161,3 +161,36 @@ test('links are well-formed https URLs with no duplicates and no exam-dump or do
   for (const u of urls) { expect(u.startsWith('https://')).toBe(true); expect(/scribd|examheist|dumps/i.test(u)).toBe(false); }
   expect(LINK_GROUPS.map((g) => g.id)).toEqual(['official', 'courses', 'docs', 'guides', 'practice', 'videos']);
 });
+
+import { displayShuffle } from '../src/engine/rng';
+import { DIAGNOSTIC } from '../src/content/devpath';
+import { buildForm as build2 } from '../src/engine/builder';
+
+describe('answer position and length giveaways', () => {
+  const spread = (letters: number[], n: number) => { const t = [0, 0, 0, 0]; for (const i of letters) if (i < 4) t[i]++; return t.map((x) => x / n); };
+  test('displayed position of the correct answer is spread across A–D in every closed-book set', () => {
+    const kc = [...LESSONS, ...DEV_LESSONS].flatMap((l) => l.check.map((c) => displayShuffle(`${l.id}:${c.id}`, c.options).findIndex((o) => o.id === c.correct)));
+    const cs = CASES.flatMap((c) => c.decisions.map((d) => displayShuffle(`${c.scenario}:${d.id}`, d.options).findIndex((o) => o.id === d.best)));
+    const dx = DIAGNOSTIC.map((d) => displayShuffle(`dx:${d.id}`, d.options).findIndex((o) => o.id === d.correct));
+    for (const share of spread(kc, kc.length)) { expect(share).toBeGreaterThan(0.12); expect(share).toBeLessThan(0.4); }
+    for (const share of spread(cs, cs.length)) expect(share).toBeLessThan(0.5);
+    expect(new Set(dx).size).toBeGreaterThanOrEqual(3);
+  });
+  test('display shuffle is stable across reloads', () => {
+    const c = LESSONS[0].check[0];
+    expect(displayShuffle(`x:${c.id}`, c.options)).toEqual(displayShuffle(`x:${c.id}`, c.options));
+  });
+  test('generated exam forms spread the correct answer across positions', () => {
+    const pos: number[] = [];
+    for (const seed of ['p1', 'p2', 'p3', 'p4']) { const f = build2(QUESTIONS, {}, seed); for (const id of f.questionIds) { const q = QUESTIONS.find((x) => x.id === id)!; if (q.type === 'single') pos.push(f.optionOrder[id].indexOf(q.options.find((o) => o.correct)!.id)); } }
+    for (const share of spread(pos, pos.length)) { expect(share).toBeGreaterThan(0.15); expect(share).toBeLessThan(0.35); }
+  });
+  test('the correct option is not usually the longest in any item set', () => {
+    const longestRate = (items: { opts: { id: string; text: string }[]; correct: string }[]) =>
+      items.filter((i) => { const max = Math.max(...i.opts.map((o) => o.text.length)); return i.opts.find((o) => o.id === i.correct)!.text.length === max; }).length / items.length;
+    expect(longestRate(QUESTIONS.filter((q) => q.type === 'single').map((q) => ({ opts: q.options, correct: q.options.find((o) => o.correct)!.id })))).toBeLessThan(0.4);
+    expect(longestRate([...LESSONS, ...DEV_LESSONS].flatMap((l) => l.check.map((c) => ({ opts: c.options, correct: c.correct }))))).toBeLessThan(0.4);
+    expect(longestRate(CASES.flatMap((c) => c.decisions.map((d) => ({ opts: d.options, correct: d.best }))))).toBeLessThan(0.4);
+    expect(longestRate(DIAGNOSTIC.map((d) => ({ opts: d.options, correct: d.correct })))).toBeLessThan(0.4);
+  });
+});

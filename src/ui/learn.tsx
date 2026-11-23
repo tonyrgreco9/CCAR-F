@@ -8,6 +8,7 @@ import { DEV_MODULES, DEV_PATH, REFRESHERS, DIAGNOSTIC } from '../content/devpat
 import { Md, Inline } from './md';
 import { store, lessonHref, practiceHref, go } from './ctx';
 import { sectionName } from './question';
+import { displayShuffle as shuffled } from '../engine/rng';
 
 const SECTION_ORDER = ['concept', 'example', 'compare', 'mistake', 'exercise', 'check', 'review'] as const;
 
@@ -275,7 +276,7 @@ function KnowledgeCheck({ l }: { l: Lesson }) {
           <div class="card" key={c.id}>
             <p><strong>{n + 1}.</strong> <Inline text={c.stem} /></p>
             <div role="radiogroup" aria-label={`Knowledge check ${n + 1}`}>
-              {c.options.map((o, i) => (
+              {shuffled(`${l.id}:${c.id}`, c.options).map((o, i) => (
                 <label key={o.id} class={`kc-opt ${p ? (o.id === c.correct ? 'right' : p === o.id ? 'wrong' : '') : ''}`}>
                   <input type="radio" name={`kc-${l.id}-${c.id}`} checked={p === o.id} disabled={!!p}
                     onClick={() => {
@@ -330,7 +331,7 @@ export function CasePage({ scenario }: { scenario: ScenarioId }) {
             <h3>Decision {n + 1}</h3>
             <Md text={dcs.prompt} />
             <div role="radiogroup" aria-label={`Decision ${n + 1}`}>
-              {dcs.options.map((o, i) => (
+              {shuffled(`${scenario}:${dcs.id}`, dcs.options).map((o, i) => (
                 <label key={o.id} class={`kc-opt ${show ? (o.id === dcs.best ? 'right' : pick === o.id ? 'wrong' : '') : ''}`}>
                   <input type="radio" name={`case-${scenario}-${dcs.id}`} checked={pick === o.id}
                     onClick={() => store.update((d) => { (d.cases[scenario] ??= {})[dcs.id] = o.id; })} />
@@ -402,7 +403,7 @@ export function DevPathPage() {
         {DIAGNOSTIC.map((x, n) => (
           <div key={x.id} class="dx">
             <p><strong>{n + 1}.</strong> {x.stem}</p>
-            {x.options.map((o, i) => (
+            {shuffled(`dx:${x.id}`, x.options).map((o, i) => (
               <label key={o.id} class={`kc-opt ${done ? (o.id === x.correct ? 'right' : ans[x.id] === o.id ? 'wrong' : '') : ''}`}>
                 <input type="radio" name={`dx-${x.id}`} checked={ans[x.id] === o.id} disabled={done} onClick={() => setAns({ ...ans, [x.id]: o.id })} />
                 <span>{'ABCD'[i]}. {o.text}</span>
