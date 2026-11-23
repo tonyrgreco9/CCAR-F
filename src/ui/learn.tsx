@@ -245,7 +245,7 @@ function Exercise({ l }: { l: Lesson }) {
             <div class="ex-labels" role="radiogroup" aria-label={`Label for item ${it.id}`}>
               {l.exercise.labels.map((lab) => (
                 <label key={lab} class="chip">
-                  <input type="radio" name={`ex-${l.id}-${it.id}`} checked={ans[it.id] === lab} onClick={() => { setAns({ ...ans, [it.id]: lab }); setChecked(false); }} />
+                  <input type="radio" name={`ex-${l.id}-${it.id}`} checked={ans[it.id] === lab} onClick={() => { setAns((prev) => ({ ...prev, [it.id]: lab })); setChecked(false); }} />
                   <span>{lab}</span>
                 </label>
               ))}
@@ -281,7 +281,7 @@ function KnowledgeCheck({ l }: { l: Lesson }) {
                   <input type="radio" name={`kc-${l.id}-${c.id}`} checked={p === o.id} disabled={!!p}
                     onClick={() => {
                       if (p) return;
-                      setPicked({ ...picked, [c.id]: o.id });
+                      setPicked((prev) => ({ ...prev, [c.id]: o.id }));
                       store.update((d) => {
                         const lp = (d.lessons[l.id] ??= { checks: {} });
                         if (!(c.id in lp.checks)) lp.checks[c.id] = o.id === c.correct;
@@ -340,7 +340,7 @@ export function CasePage({ scenario }: { scenario: ScenarioId }) {
                 </label>
               ))}
             </div>
-            <button class="btn secondary" type="button" disabled={!pick} onClick={() => setRevealed({ ...revealed, [dcs.id]: !show })} aria-expanded={show ? 'true' : 'false'}>
+            <button class="btn secondary" type="button" disabled={!pick} onClick={() => setRevealed((prev) => ({ ...prev, [dcs.id]: !prev[dcs.id] }))} aria-expanded={show ? 'true' : 'false'}>
               {pick ? (show ? 'Hide walkthrough' : 'Reveal consequences and walkthrough') : 'Choose an option to unlock the walkthrough'}
             </button>
             {show ? <div class="callout"><Md text={dcs.walkthrough} /></div> : null}
@@ -405,7 +405,7 @@ export function DevPathPage() {
             <p><strong>{n + 1}.</strong> {x.stem}</p>
             {shuffled(`dx:${x.id}`, x.options).map((o, i) => (
               <label key={o.id} class={`kc-opt ${done ? (o.id === x.correct ? 'right' : ans[x.id] === o.id ? 'wrong' : '') : ''}`}>
-                <input type="radio" name={`dx-${x.id}`} checked={ans[x.id] === o.id} disabled={done} onClick={() => setAns({ ...ans, [x.id]: o.id })} />
+                <input type="radio" name={`dx-${x.id}`} checked={ans[x.id] === o.id} disabled={done} onClick={() => setAns((prev) => ({ ...prev, [x.id]: o.id }))} />
                 <span>{'ABCD'[i]}. {o.text}</span>
               </label>
             ))}
